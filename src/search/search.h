@@ -138,6 +138,25 @@ public:
   };
 
   /**
+   * Definition of one user-defined descriptor calculation script.
+   */
+  struct DescriptorInfo
+  {
+    DescriptorInfo()
+    {
+    }
+
+    DescriptorInfo(const QString& descriptorName, const QString& executable, const QString& outputFile)
+      : name(descriptorName), exe(executable), out(outputFile)
+    {
+    }
+
+    QString name;
+    QString exe;
+    QString out;
+  };
+
+  /**
    * Actions to take when a structure has failed optimization too
    * many times.
    *
@@ -551,6 +570,20 @@ public:
   QString getConstraintOut(int i) const { return m_constraints.at(i).out; }
   void resetConstraints() { m_constraints.clear(); }
   void removeConstraint(int i) { m_constraints.removeAt(i); }
+
+  // User-defined descriptors: retrieve and modify descriptors
+  void addDescriptor(const QString& name = QString(), const QString& exe = QString(),
+                     const QString& out = QString())
+  {
+    m_descriptors.push_back(DescriptorInfo(name, exe, out));
+  }
+
+  int getDescriptorsNum() const { return m_descriptors.size(); }
+  QString getDescriptorName(int i) const { return m_descriptors.at(i).name; }
+  QString getDescriptorExe(int i) const { return m_descriptors.at(i).exe; }
+  QString getDescriptorOut(int i) const { return m_descriptors.at(i).out; }
+  void resetDescriptors() { m_descriptors.clear(); }
+  void removeDescriptor(int i) { m_descriptors.removeAt(i); }
 
   //
   // QueueManager settings
@@ -1298,6 +1331,7 @@ private:
   // Multi-objective parameters for the run
   QList<ObjectiveInfo> m_objectives;
   QList<ConstraintInfo> m_constraints;
+  QList<DescriptorInfo> m_descriptors;
 
   // String that uniquely identifies the derived SearchBase
   QString m_idString;

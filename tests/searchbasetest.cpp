@@ -447,6 +447,7 @@ private slots:
   void queueManagerRunsSubmissionToOptimizedLifecycle();
   void queueManagerDoesNotSubmitWhenInputStagingFails();
   void restartChangesStepOnlyAfterStoppingOldQueue();
+  void descriptorDataStructure();
 };
 
 void SearchBaseTest::initTestCase()
@@ -1141,6 +1142,33 @@ void SearchBaseTest::abortedSessionStaysIdle()
   // Conclude the session.
   QVERIFY(opt.runStartWorkflowForTest());
   QTRY_VERIFY(opt.newStructureRequests.load() > 0);
+}
+
+void SearchBaseTest::descriptorDataStructure()
+{
+  QVERIFY(m_opt != nullptr);
+  m_opt->resetDescriptors();
+  QCOMPARE(m_opt->getDescriptorsNum(), 0);
+
+  m_opt->addDescriptor("desc1", "/path/to/script1.py", "out1.txt");
+  m_opt->addDescriptor("desc2", "/path/to/script2.py", "out2.txt");
+
+  QCOMPARE(m_opt->getDescriptorsNum(), 2);
+
+  QCOMPARE(m_opt->getDescriptorName(0), QString("desc1"));
+  QCOMPARE(m_opt->getDescriptorExe(0), QString("/path/to/script1.py"));
+  QCOMPARE(m_opt->getDescriptorOut(0), QString("out1.txt"));
+
+  QCOMPARE(m_opt->getDescriptorName(1), QString("desc2"));
+  QCOMPARE(m_opt->getDescriptorExe(1), QString("/path/to/script2.py"));
+  QCOMPARE(m_opt->getDescriptorOut(1), QString("out2.txt"));
+
+  m_opt->removeDescriptor(0);
+  QCOMPARE(m_opt->getDescriptorsNum(), 1);
+  QCOMPARE(m_opt->getDescriptorName(0), QString("desc2"));
+
+  m_opt->resetDescriptors();
+  QCOMPARE(m_opt->getDescriptorsNum(), 0);
 }
 
 QTEST_MAIN(SearchBaseTest)
