@@ -356,6 +356,7 @@ Structure::Structure(QObject* parent)
     m_strucConstraintRedoCount(0),
     m_strucObjState(Structure::Os_NotCalculated),
     m_strucConstraintState(Structure::Cs_NotCalculated),
+    m_strucDescriptorState(Structure::Ds_NotCalculated),
     m_updatedSinceSimChecked(true),
     m_generation(0), m_id(0), m_rank(0), m_jobID(0),
     m_paretoFrontIndex(-1), m_restartOptStep(-1),
@@ -436,8 +437,10 @@ Structure& Structure::operator=(const Structure& other)
     m_preoptBonds = other.m_preoptBonds;
     m_strucObjValues = other.m_strucObjValues;
     m_strucConstraintValues = other.m_strucConstraintValues;
+    m_strucDescriptorValues = other.m_strucDescriptorValues;
     m_strucObjState = ObjectivesState(other.m_strucObjState);
     m_strucConstraintState = ConstraintState(other.m_strucConstraintState);
+    m_strucDescriptorState = DescriptorState(other.m_strucDescriptorState);
     m_strucConstraintRedoCount = other.m_strucConstraintRedoCount;
     m_paretoFrontIndex = other.m_paretoFrontIndex;
   }
@@ -491,8 +494,10 @@ Structure& Structure::operator=(Structure&& other) noexcept
     m_preoptBonds = std::move(other.m_preoptBonds);
     m_strucObjValues = std::move(other.m_strucObjValues);
     m_strucConstraintValues = std::move(other.m_strucConstraintValues);
+    m_strucDescriptorValues = std::move(other.m_strucDescriptorValues);
     m_strucObjState = std::move(ObjectivesState(other.m_strucObjState));
     m_strucConstraintState = std::move(ConstraintState(other.m_strucConstraintState));
+    m_strucDescriptorState = std::move(DescriptorState(other.m_strucDescriptorState));
     m_strucConstraintRedoCount = std::move(other.m_strucConstraintRedoCount);
     m_paretoFrontIndex = std::move(other.m_paretoFrontIndex);
   }

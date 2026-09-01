@@ -166,6 +166,7 @@ private slots:
   void generateIADHistogramSkipsDuplicateZeroTranslation();
   void perceiveBonds();
   void updateAndSkipHistoryUpdatesAtoms();
+  void descriptorValueStorage();
 };
 
 void StructureTest::initTestCase()
@@ -722,6 +723,44 @@ void StructureTest::updateAndSkipHistoryUpdatesAtoms()
   QVERIFY(APPROX_EQ(s.atom(0).pos().x(), 1.0));
   QVERIFY(APPROX_EQ(s.atom(0).pos().y(), 2.0));
   QVERIFY(APPROX_EQ(s.atom(0).pos().z(), 3.0));
+}
+
+void StructureTest::descriptorValueStorage()
+{
+  Structure s;
+
+  // 1. Initial state checks
+  QCOMPARE(s.getStrucDescriptorState(), Structure::Ds_NotCalculated);
+  QCOMPARE(s.getStrucDescriptorNumber(), 0);
+  QVERIFY(s.getStrucDescriptorValuesVec().isEmpty());
+
+  // 2. Set descriptor values vector (index-based ordering: dim 0 -> 1.25, dim 1 -> 7.50)
+  QList<double> descriptors;
+  descriptors << 1.25 << 7.50;
+  s.setStrucDescriptorValuesVec(descriptors);
+  s.setStrucDescriptorState(Structure::Ds_Retain);
+
+  // 3. Retrieval & State checks
+  QCOMPARE(s.getStrucDescriptorState(), Structure::Ds_Retain);
+  QCOMPARE(s.getStrucDescriptorNumber(), 2);
+  QCOMPARE(s.getStrucDescriptorValues(0), 1.25);
+  QCOMPARE(s.getStrucDescriptorValues(1), 7.50);
+
+  QList<double> retrieved = s.getStrucDescriptorValuesVec();
+  QCOMPARE(retrieved.size(), 2);
+  QCOMPARE(retrieved.at(0), 1.25);
+  QCOMPARE(retrieved.at(1), 7.50);
+
+  // 4. Element-wise append method
+  s.resetStrucDescriptor();
+  QCOMPARE(s.getStrucDescriptorState(), Structure::Ds_NotCalculated);
+  QCOMPARE(s.getStrucDescriptorNumber(), 0);
+
+  s.setStrucDescriptorValues(1.25);
+  s.setStrucDescriptorValues(7.50);
+  QCOMPARE(s.getStrucDescriptorNumber(), 2);
+  QCOMPARE(s.getStrucDescriptorValues(0), 1.25);
+  QCOMPARE(s.getStrucDescriptorValues(1), 7.50);
 }
 
 QTEST_MAIN(StructureTest)

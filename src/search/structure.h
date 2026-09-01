@@ -74,6 +74,14 @@ public:
     Cs_Fail
   };
 
+  // Descriptor calculation status.
+  enum DescriptorState
+  {
+    Ds_NotCalculated = 0,
+    Ds_Retain,
+    Ds_Fail
+  };
+
   /**
    * Structure's status during the search. Saved as integers in structure.state, so
    * do not renumber existing values without converting old state files. Empty
@@ -161,6 +169,19 @@ public:
   QList<double> getStrucConstraintValuesVec() const
   {
     return m_strucConstraintValues;
+  }
+
+  DescriptorState getStrucDescriptorState() const { return m_strucDescriptorState; }
+  void setStrucDescriptorState(DescriptorState v) { m_strucDescriptorState = v; }
+  int getStrucDescriptorNumber() const { return m_strucDescriptorValues.size(); }
+  double getStrucDescriptorValues(int i) const { return m_strucDescriptorValues.at(i); }
+  void setStrucDescriptorValues(double v) { m_strucDescriptorValues.push_back(v); }
+  void setStrucDescriptorValuesVec(QList<double> v) { m_strucDescriptorValues = v; }
+  QList<double> getStrucDescriptorValuesVec() const { return m_strucDescriptorValues; }
+  void resetStrucDescriptor()
+  {
+    m_strucDescriptorValues.clear();
+    m_strucDescriptorState = Structure::Ds_NotCalculated;
   }
 
   void resetStrucConstraint()
@@ -1025,9 +1046,11 @@ protected:
   // Multi-objective parameters for a structure
   QList<double> m_strucObjValues;
   QList<double> m_strucConstraintValues;
+  QList<double> m_strucDescriptorValues;
   int           m_strucConstraintRedoCount;
   std::atomic<ObjectivesState> m_strucObjState;
   std::atomic<ConstraintState> m_strucConstraintState;
+  std::atomic<DescriptorState> m_strucDescriptorState;
 
   // skip Doxygen parsing
   /// \cond
