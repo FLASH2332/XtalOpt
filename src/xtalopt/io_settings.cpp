@@ -1972,6 +1972,33 @@ bool XtalOpt::processInputConstraint(QString s)
   return true;
 }
 
+bool XtalOpt::processInputDescriptor(QString s)
+{
+  QStringList sline = s.split(" ", QtCompat::SkipEmptyParts);
+  if (sline.size() != 3) {
+    Common::error("descriptor entry must contain 3 fields: <name> <executable> <output_file>");
+    return false;
+  }
+
+  const QString name = sline.at(0).trimmed();
+  const QString exe = sline.at(1).trimmed();
+  const QString out = sline.at(2).trimmed();
+
+  if (name.isEmpty()) {
+    Common::error("descriptor name cannot be empty");
+    return false;
+  }
+
+  QString err;
+  if (!validateScriptFilename(out, "descriptor", &err)) {
+    Common::error(err);
+    return false;
+  }
+
+  addDescriptor(name, exe, out);
+  return true;
+}
+
 bool XtalOpt::rebuildDerivedSettings()
 {
   // Reconstruct composition, volume, radius, and objective data from the input
@@ -2042,6 +2069,23 @@ QStringList XtalOpt::constraintLines() const
   QStringList out;
   for (int i = 0; i < getConstraintsNum(); ++i)
     out << constraintEntryToText(i);
+  return out;
+}
+
+// Process one descriptor as the "name exe out".
+//   The same format is parsed back by processInputDescriptor().
+QString XtalOpt::descriptorEntryToText(int descriptorIndex) const
+{
+  return getDescriptorName(descriptorIndex) + " " +
+         getDescriptorExe(descriptorIndex) + " " +
+         getDescriptorOut(descriptorIndex);
+}
+
+QStringList XtalOpt::descriptorLines() const
+{
+  QStringList out;
+  for (int i = 0; i < getDescriptorsNum(); ++i)
+    out << descriptorEntryToText(i);
   return out;
 }
 

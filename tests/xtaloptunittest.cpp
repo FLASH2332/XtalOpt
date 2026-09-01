@@ -313,6 +313,7 @@ private slots:
   void readOnlySearchDoesNotSaveHullSnapshot();
   void objectiveSettingsValidation();
   void constraintInputSyntax();
+  void descriptorInputSyntax();
   void removeUserObjectivePreservesBuiltinObjective();
   void runtimeOptionsApplyRuntimeChangeableKeys();
   void rebuildDerivedSettingsClearsCachesWhenInputsEmpty();
@@ -767,6 +768,7 @@ void XtalOptUnitTest::settingsRegistryAppliesAndReadsScalars()
   QVERIFY(Settings::isRepeatableInputKeyword("customIAD"));
   QVERIFY(Settings::isRepeatableInputKeyword("objective"));
   QVERIFY(Settings::isRepeatableInputKeyword("constraint"));
+  QVERIFY(Settings::isRepeatableInputKeyword("descriptor"));
   QVERIFY(Settings::isRepeatableInputKeyword("potcarFile"));
   QVERIFY(Settings::isRepeatableInputKeyword("psfFile"));
   QCOMPARE(Settings::findKeywordName("amin"), QString("aMin"));
@@ -1103,6 +1105,58 @@ void XtalOptUnitTest::removeUserObjectivePreservesBuiltinObjective()
   QCOMPARE(opt.getUserObjectivesNum(), 0);
   QCOMPARE(opt.getObjectivesWgt(0), 1.0);
   QVERIFY(!opt.needsObjectiveOrConstraintCalculations());
+}
+
+void XtalOptUnitTest::descriptorInputSyntax()
+{
+  XtalOpt opt;
+  opt.resetDescriptors();
+  QCOMPARE(opt.getDescriptorsNum(), 0);
+
+  // Valid single descriptor
+  QVERIFY(opt.processInputDescriptor("density ./calc_density.sh density.out"));
+  QCOMPARE(opt.getDescriptorsNum(), 1);
+  QCOMPARE(opt.getDescriptorName(0), QString("density"));
+  QCOMPARE(opt.getDescriptorExe(0), QString("./calc_density.sh"));
+  QCOMPARE(opt.getDescriptorOut(0), QString("density.out"));
+
+  // Multiple descriptors
+  QVERIFY(opt.processInputDescriptor("bandgap ./calc_bandgap.py gap.out"));
+  QCOMPARE(opt.getDescriptorsNum(), 2);
+  QCOMPARE(opt.getDescriptorName(1), QString("bandgap"));
+  QCOMPARE(opt.getDescriptorExe(1), QString("./calc_bandgap.py"));
+  QCOMPARE(opt.getDescriptorOut(1), QString("gap.out"));
+
+  // Malformed descriptors: too few / too many tokens
+  QVERIFY(!opt.processInputDescriptor("only_two_tokens ./script.sh"));
+  QVERIFY(!opt.processInputDescriptor("four tokens in total ./script.sh out.txt"));
+
+  // Output filename validation error (e.g. empty or directory separator in output filename)
+  QVERIFY(!opt.processInputDescriptor("desc ./script.sh path/to/out.txt"));
+
+  // Descriptor lines accessor format
+  QStringList lines = opt.descriptorLines();
+  QCOMPARE(lines.size(), 2);
+  QCOMPARE(lines.at(0), QString("density ./calc_density.sh density.out"));
+  QCOMPARE(lines.at(1), QString("bandgap ./calc_bandgap.py gap.out"));
+
+  // Save / load input file roundtrip test
+  opt.setInputFormulasString("Ti1O2");
+  QTemporaryDir tempDir;
+  QVERIFY(tempDir.isValid());
+  const QString inputPath = tempPath(tempDir, "xtalopt.in");
+  QVERIFY(opt.saveInputFile(inputPath));
+
+  XtalOpt reloaded;
+  reloaded.setRunMode(XtalOpt::RunModeReadOnly);
+  QVERIFY(reloaded.loadInputFile(inputPath, true, false));
+  QCOMPARE(reloaded.getDescriptorsNum(), 2);
+  QCOMPARE(reloaded.getDescriptorName(0), QString("density"));
+  QCOMPARE(reloaded.getDescriptorExe(0), QString("./calc_density.sh"));
+  QCOMPARE(reloaded.getDescriptorOut(0), QString("density.out"));
+  QCOMPARE(reloaded.getDescriptorName(1), QString("bandgap"));
+  QCOMPARE(reloaded.getDescriptorExe(1), QString("./calc_bandgap.py"));
+  QCOMPARE(reloaded.getDescriptorOut(1), QString("gap.out"));
 }
 
 void XtalOptUnitTest::runtimeOptionsApplyRuntimeChangeableKeys()

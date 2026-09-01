@@ -79,6 +79,7 @@ public:
   // Repeated entries' values.
   QStringList objectiveLines() const;
   QStringList constraintLines() const;
+  QStringList descriptorLines() const;
   QStringList customIADLines() const;
   QStringList molUnitLines() const;
 
@@ -344,6 +345,9 @@ public:
   // Parse and append one constrained-search entry.
   bool processInputConstraint(QString s);
 
+  // Parse and append one user-defined descriptor entry.
+  bool processInputDescriptor(QString s);
+
   // Parse one "<symbol>, <symbol>, <minDistance>" custom-IAD entry and store it
   //   (symmetrically) in the interatomic-distance table.
   bool processInputCustomIAD(QString s);
@@ -376,6 +380,7 @@ public:
   // Convert multi-entry (repeated) lists to text.
   QString objectiveEntryToText(int objectiveIndex) const;
   QString constraintEntryToText(int constraintIndex) const;
+  QString descriptorEntryToText(int descriptorIndex) const;
   static QString customIADEntryToText(int atomicNumber1, int atomicNumber2, double minIAD);
 
   // Get the composition that has the smallest atom counts for all elements

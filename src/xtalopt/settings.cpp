@@ -210,6 +210,7 @@ const QList<Row>& rows()
     t << scalar("constraintsReDo", "false", false, true, &XtalOpt::isConstraintsReDo, &XtalOpt::setConstraintsReDo);
     t << repeated("objective", "", false, false, &XtalOpt::objectiveLines, &XtalOpt::processInputObjectives, &XtalOpt::resetObjectives);
     t << repeated("constraint", "", false, false, &XtalOpt::constraintLines, &XtalOpt::processInputConstraint, &XtalOpt::resetConstraints);
+    t << repeated("descriptor", "", false, false, &XtalOpt::descriptorLines, &XtalOpt::processInputDescriptor, &XtalOpt::resetDescriptors);
 
     //  Operator weights
     t << scalar("weightPermutomic", "20", false, true, &XtalOpt::getPAtomic, &XtalOpt::setPAtomic);
