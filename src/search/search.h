@@ -509,6 +509,27 @@ public:
   bool finishConstraintCalculations(Structure* s);
 
   /**
+   * Starts user-defined descriptor runs for structure @p s.
+   * @param s The structure whose descriptors are to be calculated.
+   */
+  bool startDescriptorCalculations(Structure* s);
+
+  /**
+   * Finalize user-defined descriptor script execution for @p s.
+   */
+  bool finishDescriptorCalculations(Structure* s);
+
+  /**
+   * Delete descriptor script outputs from any earlier run.
+   */
+  bool removeOldDescriptorScriptOutputs(Structure* s);
+
+  /**
+   * Returns true if there is at least one descriptor calculation configured.
+   */
+  bool hasDescriptorCalculations() const { return getDescriptorsNum() > 0; }
+
+  /**
    * Delete objc/const script outputs from any earlier run.
    */
   bool removeOldScriptOutputs(Structure* s, bool constraints);

@@ -448,6 +448,7 @@ private slots:
   void queueManagerDoesNotSubmitWhenInputStagingFails();
   void restartChangesStepOnlyAfterStoppingOldQueue();
   void descriptorDataStructure();
+  void descriptorExecutionAndOutputParsing();
 };
 
 void SearchBaseTest::initTestCase()
@@ -1169,6 +1170,91 @@ void SearchBaseTest::descriptorDataStructure()
 
   m_opt->resetDescriptors();
   QCOMPARE(m_opt->getDescriptorsNum(), 0);
+}
+
+void SearchBaseTest::descriptorExecutionAndOutputParsing()
+{
+  QTemporaryDir tempDir;
+  QVERIFY(tempDir.isValid());
+
+  Structure structure;
+  structure.setCellInfo(10.0, 10.0, 10.0, 90.0, 90.0, 90.0);
+  structure.addAtom(8, Common::Vector3(0.0, 0.0, 0.0));
+  structure.setLocpath(tempDir.path());
+  structure.setCurrentOptStep(0);
+
+  m_opt->setQueueInterface(0, "localfiles");
+
+  // Case 1: Zero descriptors
+  m_opt->resetDescriptors();
+  QVERIFY(m_opt->startDescriptorCalculations(&structure));
+  QVERIFY(m_opt->finishDescriptorCalculations(&structure));
+  QCOMPARE(structure.getStrucDescriptorState(), Structure::Ds_NotCalculated);
+  QCOMPARE(structure.getStrucDescriptorNumber(), 0);
+
+  // Case 2: One descriptor (value 1.25)
+  QFile desc1File(Common::localPath(tempDir.path(), "desc1.out"));
+  QVERIFY(desc1File.open(QIODevice::WriteOnly | QIODevice::Text));
+  desc1File.write("1.25\n");
+  desc1File.close();
+
+  m_opt->resetDescriptors();
+  m_opt->addDescriptor("d1", "dummy_exe1", "desc1.out");
+
+  QVERIFY(m_opt->startDescriptorCalculations(&structure));
+  QVERIFY(QFile::exists(Common::localPath(tempDir.path(), "output.POSCAR")));
+  QVERIFY(m_opt->finishDescriptorCalculations(&structure));
+
+  QCOMPARE(structure.getStrucDescriptorState(), Structure::Ds_Retain);
+  QCOMPARE(structure.getStrucDescriptorNumber(), 1);
+  QCOMPARE(structure.getStrucDescriptorValues(0), 1.25);
+
+  // Case 3: Two descriptors (order: desc1 -> 1.25, desc2 -> 7.50)
+  QFile desc2File(Common::localPath(tempDir.path(), "desc2.out"));
+  QVERIFY(desc2File.open(QIODevice::WriteOnly | QIODevice::Text));
+  desc2File.write("7.50 extra-column\n");
+  desc2File.close();
+
+  structure.resetStrucDescriptor();
+  m_opt->resetDescriptors();
+  m_opt->addDescriptor("d1", "dummy_exe1", "desc1.out");
+  m_opt->addDescriptor("d2", "dummy_exe2", "desc2.out");
+
+  QVERIFY(m_opt->startDescriptorCalculations(&structure));
+  QVERIFY(m_opt->finishDescriptorCalculations(&structure));
+
+  QCOMPARE(structure.getStrucDescriptorState(), Structure::Ds_Retain);
+  QCOMPARE(structure.getStrucDescriptorNumber(), 2);
+  QCOMPARE(structure.getStrucDescriptorValues(0), 1.25);
+  QCOMPARE(structure.getStrucDescriptorValues(1), 7.50);
+
+  // Case 4: Invalid / Malformed / Non-numeric output
+  QFile invalidFile(Common::localPath(tempDir.path(), "invalid.out"));
+  QVERIFY(invalidFile.open(QIODevice::WriteOnly | QIODevice::Text));
+  invalidFile.write("not-a-number\n");
+  invalidFile.close();
+
+  structure.resetStrucDescriptor();
+  m_opt->resetDescriptors();
+  m_opt->addDescriptor("d_valid", "dummy_exe1", "desc1.out");
+  m_opt->addDescriptor("d_invalid", "dummy_exe2", "invalid.out");
+
+  QVERIFY(m_opt->startDescriptorCalculations(&structure));
+  QVERIFY(m_opt->finishDescriptorCalculations(&structure));
+
+  QCOMPARE(structure.getStrucDescriptorState(), Structure::Ds_Fail);
+  QCOMPARE(structure.getStrucDescriptorNumber(), 2);
+
+  // Case 5: Missing output file
+  structure.resetStrucDescriptor();
+  m_opt->resetDescriptors();
+  m_opt->addDescriptor("d_missing", "dummy_exe", "non_existent_file.out");
+
+  QVERIFY(m_opt->startDescriptorCalculations(&structure));
+  QVERIFY(!m_opt->finishDescriptorCalculations(&structure)); // Returns false when output file missing
+
+  m_opt->resetDescriptors();
+  m_opt->setQueueInterface(0, "dummyqueue");
 }
 
 QTEST_MAIN(SearchBaseTest)

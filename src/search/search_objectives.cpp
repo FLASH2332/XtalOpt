@@ -438,4 +438,99 @@ bool SearchBase::removeOldScriptOutputs(Structure* s, bool constraints)
   return removeOldOutputFiles(s, context, scripts);
 }
 
+bool SearchBase::startDescriptorCalculations(Structure* s)
+{
+  if (getDescriptorsNum() == 0)
+    return true;
+
+  const ScriptCalculationContext context = calculationContext(this, s);
+  std::vector<ExternalScript> scripts;
+  scripts.reserve(getDescriptorsNum());
+  for (int i = 0; i < getDescriptorsNum(); ++i) {
+    scripts.push_back(ExternalScript(i + 1, getDescriptorExe(i), getDescriptorOut(i)));
+  }
+
+  Common::message(tr("Descriptor calculations for %1 started.").arg(s->getTag()));
+
+  const QString outputStructure = "output.POSCAR";
+  if (!writeOutputPoscar(s, outputStructure)) {
+    Common::error(tr("Failed writing output.POSCAR file for structure %1")
+                     .arg(s->getTag()));
+    return false;
+  }
+
+  if (!context.queue->copyFileToExecutionHost(Common::localPath(context.localDir, outputStructure),
+        workPath(context, outputStructure))) {
+    Common::error(tr("Failed to copy the output.POSCAR file for structure %1 to remote!")
+                     .arg(s->getTag()));
+    return false;
+  }
+  return runExternalScripts(s, context, scripts, tr("descriptor"));
+}
+
+bool SearchBase::finishDescriptorCalculations(Structure* s)
+{
+  if (getDescriptorsNum() == 0) {
+    QWriteLocker structureLocker(&s->lock());
+    s->resetStrucDescriptor();
+    return true;
+  }
+
+  const ScriptCalculationContext context = calculationContext(this, s);
+  std::vector<ExternalScript> scripts;
+  scripts.reserve(getDescriptorsNum());
+  for (int i = 0; i < getDescriptorsNum(); ++i) {
+    scripts.push_back(ExternalScript(i + 1, getDescriptorExe(i), getDescriptorOut(i)));
+  }
+
+  if (!checkAndGetScriptOutputs(s, context, scripts, tr("Descriptor")))
+    return false;
+
+  QList<double> values;
+  values.reserve(getDescriptorsNum());
+  int failedCount = 0;
+  for (int i = 0; i < getDescriptorsNum(); ++i) {
+    double value = 0.0;
+    const QString descriptorFile = getDescriptorOut(i);
+    const bool valid = readScriptValue(descriptorFile, context.localDir, false, value);
+    if (!valid) {
+      Common::error(tr("Failed to read any results from output file for descriptor %1 for structure %2")
+                       .arg(i + 1).arg(s->getTag()));
+      failedCount += 1;
+    }
+    values.append(value);
+  }
+
+  QString descContext;
+  QWriteLocker structureLocker(&s->lock());
+  s->setStrucDescriptorValuesVec(values);
+  if (failedCount == 0) {
+    s->setStrucDescriptorState(Structure::Ds_Retain);
+    descContext = "retain";
+  } else {
+    s->setStrucDescriptorState(Structure::Ds_Fail);
+    descContext = "fail";
+  }
+  structureLocker.unlock();
+
+  Common::message(tr("Descriptor calculations for %1 finished (status = %2).")
+                     .arg(s->getTag()).arg(descContext));
+
+  return true;
+}
+
+bool SearchBase::removeOldDescriptorScriptOutputs(Structure* s)
+{
+  if (getDescriptorsNum() == 0)
+    return true;
+
+  const ScriptCalculationContext context = calculationContext(this, s);
+  std::vector<ExternalScript> scripts;
+  scripts.reserve(getDescriptorsNum());
+  for (int i = 0; i < getDescriptorsNum(); ++i) {
+    scripts.push_back(ExternalScript(i + 1, getDescriptorExe(i), getDescriptorOut(i)));
+  }
+  return removeOldOutputFiles(s, context, scripts);
+}
+
 } // namespace Search
