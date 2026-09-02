@@ -134,6 +134,7 @@ bool Structure::isQueueInProgressState(State state)
     case InProcess:
     case ObjectiveCalculation:
     case ConstraintCalculation:
+    case DescriptorCalculation:
       return true;
     default:
       return false;
@@ -150,6 +151,7 @@ bool Structure::isScriptCalculationState(State state)
   switch (state) {
     case ObjectiveCalculation:
     case ConstraintCalculation:
+    case DescriptorCalculation:
       return true;
     default:
       return false;
@@ -264,6 +266,7 @@ bool Structure::isActiveState(State state)
     case ScriptCalculation:
     case ObjectiveCalculation:
     case ConstraintCalculation:
+    case DescriptorCalculation:
       return true;
     default:
       return false;
@@ -324,6 +327,8 @@ QString Structure::statusText(State state, bool longText)
       return longText ? "Calculating objectives" : "ObjcCalcs";
     case ConstraintCalculation:
       return longText ? "Calculating constraints" : "ConsCalcs";
+    case DescriptorCalculation:
+      return longText ? "Calculating descriptors" : "DescCalcs";
     case Dismissed:
       return "Dismissed";
     case ObjcFailed:

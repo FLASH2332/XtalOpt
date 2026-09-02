@@ -27,6 +27,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QProcess>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -127,6 +128,49 @@ public:
   }
 };
 
+// A queue interface that actually executes scripts locally via QProcess.
+// checkIfFileExists() checks the real local filesystem.
+// All other operations are no-ops (same as DummyQueueInterface).
+class ScriptRunningQueueInterface : public DummyQueueInterface
+{
+  Q_OBJECT
+public:
+  explicit ScriptRunningQueueInterface(SearchBase* p)
+    : DummyQueueInterface(p)
+  {
+  }
+  QString getIDString() const override { return "scriptrunner"; }
+
+  // Actually run the command in workdir via /bin/sh.
+  CommandResult runACommand(const QString& workdir, const QString& command,
+                            int timeoutMs = -1) const override
+  {
+    CommandResult result;
+    QProcess proc;
+    proc.setWorkingDirectory(workdir);
+    // Run via /bin/sh so shell scripts (#!/bin/sh) work correctly.
+    proc.start("/bin/sh", QStringList() << "-c" << command);
+    const int waitMs = (timeoutMs > 0) ? timeoutMs : 30000;
+    if (!proc.waitForStarted(waitMs)) {
+      result.launched = false;
+      return result;
+    }
+    result.launched = true;
+    proc.waitForFinished(waitMs);
+    result.exitCode = proc.exitCode();
+    result.stdoutText = QString::fromLocal8Bit(proc.readAllStandardOutput());
+    result.stderrText = QString::fromLocal8Bit(proc.readAllStandardError());
+    return result;
+  }
+
+  // Check the real local file system.
+  bool checkIfFileExists(Structure* s, const QString& filename, bool* exists) override
+  {
+    *exists = QFile::exists(Common::localPath(s->getLocpath(), filename));
+    return true;
+  }
+};
+
 class FailingWriteQueueInterface : public DummyQueueInterface
 {
   Q_OBJECT
@@ -178,6 +222,10 @@ public:
   }
   void leaveForTest(Structure* s, int slot) { m_runningHandlers.finish(s, slot); }
   bool hasAnyForTest(Structure* s) { return m_runningHandlers.hasHandlerFor(s); }
+  void handleScriptCalculationStructureForTest(Structure* s)
+  {
+    handleScriptCalculationStructure(s);
+  }
 };
 
 class ScopedContStructs
@@ -280,6 +328,8 @@ public:
       return make_unique<LocalFileQueueInterface>(this);
     if (queueName == "failingwritequeue")
       return make_unique<FailingWriteQueueInterface>(this);
+    if (queueName == "scriptrunner")
+      return make_unique<ScriptRunningQueueInterface>(this);
 
     Common::message(QString("Unknown queueName: %1").arg(queueName.c_str()));
 
@@ -449,6 +499,7 @@ private slots:
   void restartChangesStepOnlyAfterStoppingOldQueue();
   void descriptorDataStructure();
   void descriptorExecutionAndOutputParsing();
+  void queueManagerRunsDescriptorLifecycle();
 };
 
 void SearchBaseTest::initTestCase()
@@ -1252,6 +1303,153 @@ void SearchBaseTest::descriptorExecutionAndOutputParsing()
 
   QVERIFY(m_opt->startDescriptorCalculations(&structure));
   QVERIFY(!m_opt->finishDescriptorCalculations(&structure)); // Returns false when output file missing
+
+  m_opt->resetDescriptors();
+  m_opt->setQueueInterface(0, "dummyqueue");
+}
+
+void SearchBaseTest::queueManagerRunsDescriptorLifecycle()
+{
+  // --- Success lifecycle ---
+  //
+  // The descriptor script writes its OWN output file ("1.25\n") when
+  // QueueManager executes it. The test NEVER manually writes any output file.
+  // QueueManager's polling loop detects the output, calls
+  // finishDescriptorCalculations(), and advances the structure to Optimized.
+
+  ScopedContStructs noPopulationRequests(m_opt, 0);
+
+  QTemporaryDir tempDir;
+  QVERIFY(tempDir.isValid());
+
+  // Script writes "1.25" to desc1.out in the working directory (tempDir).
+  const QString successScriptPath =
+    Common::localPath(tempDir.path(), "desc_success.sh");
+  {
+    QFile f(successScriptPath);
+    QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+    f.write("#!/bin/sh\nprintf '1.25\\n' > desc1.out\nexit 0\n");
+    f.close();
+    f.setPermissions(QFile::ExeOwner | QFile::ReadOwner | QFile::WriteOwner);
+  }
+
+  m_opt->resetDescriptors();
+  m_opt->addDescriptor("d1", successScriptPath, "desc1.out");
+
+  // ScriptRunningQueueInterface actually executes the descriptor script via
+  // /bin/sh and checks the real local filesystem for output files.
+  QVERIFY(m_opt->setQueueInterface(0, "scriptrunner"));
+
+  DummyQueueInterface* queue =
+    qobject_cast<DummyQueueInterface*>(m_opt->queueInterface(0));
+  QVERIFY(queue != nullptr);
+  queue->statuses.clear();
+  queue->statuses << QueueInterface::Running << QueueInterface::Success;
+
+  static_cast<DummySearchBase*>(m_opt)->markSessionActiveForTest();
+  TestQueueManager queueManager(m_opt);
+
+  // Track every state the QueueManager emits, in order.
+  QList<Structure::State> observedStates;
+  QMutex observedStatesMutex;
+  QObject::connect(&queueManager, &QueueManager::structureUpdated,
+                   &queueManager,
+                   [&observedStates, &observedStatesMutex](Structure* s) {
+                     QtCompat::MutexLocker lk(&observedStatesMutex);
+                     observedStates.append(s->getStatus());
+                   },
+                   Qt::DirectConnection);
+  QObject::connect(&queueManager, &QueueManager::structureFinished,
+                   &queueManager,
+                   [&observedStates, &observedStatesMutex](Structure*) {
+                     QtCompat::MutexLocker lk(&observedStatesMutex);
+                     observedStates.append(Structure::Optimized);
+                   },
+                   Qt::DirectConnection);
+
+  Structure structure;
+  structure.setCellInfo(10.0, 10.0, 10.0, 90.0, 90.0, 90.0);
+  structure.addAtom(8, Common::Vector3(0.0, 0.0, 0.0));
+  structure.setLocpath(tempDir.path());
+  structure.setGeneration(1);
+  structure.setIDNumber(1);
+  structure.setCurrentOptStep(0);
+  structure.setStatus(Structure::Empty);
+
+  // Submit from Empty — QueueManager drives the full pipeline:
+  //   Empty -> WaitingForOptimization -> Submitted -> InProcess
+  //         -> StepOptimized -> ScriptCalculation
+  //         -> DescriptorCalculation (script runs, writes desc1.out)
+  //         -> ScriptCalculation -> Optimized
+  queueManager.addStructureToSubmissionQueue(&structure);
+
+  // QueueManager must reach Optimized entirely on its own.
+  // The test provides no manual assistance after submission.
+  QTRY_COMPARE_WITH_TIMEOUT(structure.getStatus(), Structure::Optimized, 15000);
+  QTRY_COMPARE_WITH_TIMEOUT(queueManager.getAllRunningStructures().size(), 0,
+                             5000);
+
+  // Verify descriptor values were set by QueueManager calling
+  // finishDescriptorCalculations() — NOT by the test.
+  QCOMPARE(structure.getStrucDescriptorState(), Structure::Ds_Retain);
+  QCOMPARE(structure.getStrucDescriptorNumber(), 1);
+  QCOMPARE(structure.getStrucDescriptorValues(0), 1.25);
+
+  // Verify QueueManager passed through DescriptorCalculation state.
+  {
+    QtCompat::MutexLocker lk(&observedStatesMutex);
+    QVERIFY2(
+      observedStates.contains(Structure::DescriptorCalculation),
+      "QueueManager never emitted DescriptorCalculation state");
+    // DescriptorCalculation must precede Optimized in the emitted sequence.
+    const int dcIdx = observedStates.indexOf(Structure::DescriptorCalculation);
+    const int optIdx = observedStates.lastIndexOf(Structure::Optimized);
+    QVERIFY2(dcIdx < optIdx,
+             "DescriptorCalculation did not precede Optimized in emitted states");
+  }
+
+  // --- Failure lifecycle ---
+  //
+  // The failure script writes a non-numeric string to desc1.out.
+  // QueueManager detects this as Ds_Fail and maps the structure to ObjcFailed.
+
+  QTemporaryDir failDir;
+  QVERIFY(failDir.isValid());
+
+  const QString failScriptPath =
+    Common::localPath(failDir.path(), "desc_fail.sh");
+  {
+    QFile f(failScriptPath);
+    QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+    // Writes "not-a-number" — finishDescriptorCalculations marks Ds_Fail.
+    f.write("#!/bin/sh\nprintf 'not-a-number\\n' > desc1.out\nexit 0\n");
+    f.close();
+    f.setPermissions(QFile::ExeOwner | QFile::ReadOwner | QFile::WriteOwner);
+  }
+
+  m_opt->resetDescriptors();
+  m_opt->addDescriptor("d1", failScriptPath, "desc1.out");
+
+  // Reuse the scriptrunner queue — reset status sequence.
+  queue->statuses.clear();
+  queue->statuses << QueueInterface::Running << QueueInterface::Success;
+
+  Structure failStructure;
+  failStructure.setCellInfo(10.0, 10.0, 10.0, 90.0, 90.0, 90.0);
+  failStructure.addAtom(8, Common::Vector3(0.0, 0.0, 0.0));
+  failStructure.setLocpath(failDir.path());
+  failStructure.setGeneration(1);
+  failStructure.setIDNumber(2);
+  failStructure.setCurrentOptStep(0);
+  failStructure.setStatus(Structure::Empty);
+
+  queueManager.addStructureToSubmissionQueue(&failStructure);
+
+  // QueueManager must reach ObjcFailed autonomously after parsing
+  // the malformed descriptor output written by the script.
+  QTRY_COMPARE_WITH_TIMEOUT(failStructure.getStatus(), Structure::ObjcFailed,
+                             15000);
+  QCOMPARE(failStructure.getStrucDescriptorState(), Structure::Ds_Fail);
 
   m_opt->resetDescriptors();
   m_opt->setQueueInterface(0, "dummyqueue");

@@ -522,8 +522,10 @@ void QueueManager::checkRunning()
       continue;
     }
     if (Structure::isScriptCalculationState(status)) {
-      // Check for objc/const script outputs
-      watchScriptCalculation(structure, status == Structure::ConstraintCalculation);
+      // Check for objc/const/descriptor script outputs
+      watchScriptCalculation(structure,
+                            status == Structure::ConstraintCalculation,
+                            status == Structure::DescriptorCalculation);
       continue;
     }
 
@@ -579,7 +581,7 @@ void QueueManager::checkRunning()
   return;
 }
 
-void QueueManager::startScriptCalculations(Structure* s, bool constraints)
+void QueueManager::startScriptCalculations(Structure* s, bool constraints, bool descriptors)
 {
   {
     QtCompat::MutexLocker waitsLocker(&m_scriptWaitsMutex);
@@ -591,20 +593,25 @@ void QueueManager::startScriptCalculations(Structure* s, bool constraints)
 
   // The handler slot is held during the run and is released when it returns.
   (void)QtConcurrent::run(&m_objectiveThreadPool,
-                          [this, s, constraints]() {
+                          [this, s, constraints, descriptors]() {
     bool ok = true;
     if (!m_search->isShuttingDown()) {
-      if (constraints)
+      if (descriptors)
+        ok = m_search->startDescriptorCalculations(s);
+      else if (constraints)
         ok = m_search->startConstraintCalculations(s);
       else
         ok = m_search->startObjectiveCalculations(s);
     }
 
     if (!ok) {
-      const Structure::State state = constraints ? Structure::ConstraintCalculation : Structure::ObjectiveCalculation;
+      const Structure::State state = descriptors ? Structure::DescriptorCalculation :
+                                     (constraints ? Structure::ConstraintCalculation : Structure::ObjectiveCalculation);
       QWriteLocker locker(&s->lock());
       if (s->getStatus() == state) {
-        if (constraints)
+        if (descriptors)
+          s->setStrucDescriptorState(Structure::Ds_Fail);
+        else if (constraints)
           s->setStrucConstraintState(Structure::Cs_Fail);
         else
           s->setStrucObjState(Structure::Os_Fail);
@@ -623,9 +630,10 @@ bool QueueManager::waitForScriptCalculations(int timeoutMs)
   return m_objectiveThreadPool.waitForDone(timeoutMs);
 }
 
-void QueueManager::watchScriptCalculation(Structure* s, bool constraints)
+void QueueManager::watchScriptCalculation(Structure* s, bool constraints, bool descriptors)
 {
-  const Structure::State status = constraints ? Structure::ConstraintCalculation : Structure::ObjectiveCalculation;
+  const Structure::State status = descriptors ? Structure::DescriptorCalculation :
+                                 (constraints ? Structure::ConstraintCalculation : Structure::ObjectiveCalculation);
   const QDateTime now = QDateTime::currentDateTime();
   bool timedOut = false;
   bool checkDue = false;
@@ -654,13 +662,16 @@ void QueueManager::watchScriptCalculation(Structure* s, bool constraints)
 
   if (timedOut) {
     Common::error(tr("%1 calculations for %2 timed out waiting for output file(s).")
-                     .arg(status == Structure::ConstraintCalculation ? tr("Constraint") : tr("Objective"))
+                     .arg(status == Structure::DescriptorCalculation ? tr("Descriptor") :
+                          (status == Structure::ConstraintCalculation ? tr("Constraint") : tr("Objective")))
                      .arg(s->getTag()));
     {
       QWriteLocker locker(&s->lock());
       if (s->getStatus() != status)
         return;
-      if (status == Structure::ConstraintCalculation)
+      if (status == Structure::DescriptorCalculation)
+        s->setStrucDescriptorState(Structure::Ds_Fail);
+      else if (status == Structure::ConstraintCalculation)
         s->setStrucConstraintState(Structure::Cs_Fail);
       else
         s->setStrucObjState(Structure::Os_Fail);
@@ -952,14 +963,16 @@ void QueueManager::handleScriptCalculationStructure(Structure* s)
 {
   QWriteLocker locker(&s->lock());
 
-  // Objc/const calculation states
+  // Objc/const/descriptor calculation states
   const Structure::State entryStatus = s->getStatus();
   if (Structure::isScriptCalculationState(entryStatus)) {
     locker.unlock();
     const bool finished =
       (entryStatus == Structure::ConstraintCalculation)
         ? m_search->finishConstraintCalculations(s)
-        : m_search->finishObjectiveCalculations(s);
+        : ((entryStatus == Structure::DescriptorCalculation)
+             ? m_search->finishDescriptorCalculations(s)
+             : m_search->finishObjectiveCalculations(s));
     if (!finished)
       return;
     locker.relock();
@@ -994,7 +1007,7 @@ void QueueManager::handleScriptCalculationStructure(Structure* s)
       s->setStatus(Structure::ConstraintCalculation);
       locker.unlock();
       emit structureUpdated(s);
-      startScriptCalculations(s, true);
+      startScriptCalculations(s, true, false);
       return;
     }
 
@@ -1037,7 +1050,7 @@ void QueueManager::handleScriptCalculationStructure(Structure* s)
       s->setStatus(Structure::ObjectiveCalculation);
       locker.unlock();
       emit structureUpdated(s);
-      startScriptCalculations(s, false);
+      startScriptCalculations(s, false, false);
       return;
     }
 
@@ -1048,6 +1061,39 @@ void QueueManager::handleScriptCalculationStructure(Structure* s)
       return;
     }
 
+  }
+
+  // Descriptors are calculated after constraints and objectives have passed.
+  if (m_search->hasDescriptorCalculations()) {
+    if (s->getStrucDescriptorState() == Structure::Ds_NotCalculated) {
+      locker.unlock();
+      if (!m_runningHandlers.tryStart(s, ScriptLaunchHandler))
+        return;
+      if (!m_search->removeOldDescriptorScriptOutputs(s)) {
+        m_runningHandlers.finish(s, ScriptLaunchHandler);
+        return;
+      }
+      locker.relock();
+      if (s->getStatus() != Structure::ScriptCalculation ||
+          s->getStrucDescriptorState() != Structure::Ds_NotCalculated) {
+        m_runningHandlers.finish(s, ScriptLaunchHandler);
+        return;
+      }
+      s->resetStrucDescriptor();
+      clearScriptWait(s);
+      s->setStatus(Structure::DescriptorCalculation);
+      locker.unlock();
+      emit structureUpdated(s);
+      startScriptCalculations(s, false, true);
+      return;
+    }
+
+    if (s->getStrucDescriptorState() == Structure::Ds_Fail) {
+      s->setStatus(Structure::ObjcFailed);
+      locker.unlock();
+      runHandler(s, ScriptFailHandler);
+      return;
+    }
   }
 
   // No post-optimization work remains for this structure.

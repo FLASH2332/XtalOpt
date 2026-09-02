@@ -129,7 +129,9 @@ public:
     /** Objective calculations failed */
     ObjcFailed = 15,
     /** Constraint calculations failed */
-    ConsFailed = 16
+    ConsFailed = 16,
+    /** Running descriptor calculations */
+    DescriptorCalculation = 17
   };
 
   // Pareto front index.

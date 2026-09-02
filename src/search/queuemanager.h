@@ -427,15 +427,15 @@ protected:
   QThreadPool m_objectiveThreadPool;
 
   /**
-   * Launch the objective or constraint scripts for @p s on the objective
+   * Launch the objective, constraint, or descriptor scripts for @p s on the objective
    * thread pool. A handler slot stays live until the launch returns.
    */
-  void startScriptCalculations(Structure* s, bool constraints);
+  void startScriptCalculations(Structure* s, bool constraints, bool descriptors = false);
 
   /**
-   * The engine's checker for structure's objective/constraint calculations.
+   * The engine's checker for structure's objective/constraint/descriptor calculations.
    */
-  void watchScriptCalculation(Structure* s, bool constraints);
+  void watchScriptCalculation(Structure* s, bool constraints, bool descriptors = false);
 
   /**
    * Remove objc/cons timing data for a single calculation
