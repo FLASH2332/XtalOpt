@@ -16,6 +16,8 @@
 
 #include <QtTest>
 
+#include <limits>
+
 using namespace Search;
 
 /**
@@ -27,8 +29,10 @@ using namespace Search;
  *   - Valid and invalid coordinate access
  *   - Cell identity / independence
  *
+ * Also covers (Step 4B):
+ *   - Descriptor → (x,y) mapping via descriptorToCell()
+ *
  * Out of scope (covered in later steps):
- *   - Descriptor → (x,y) mapping
  *   - Pareto dominance or archive logic
  *   - SearchBase / QueueManager integration
  */
@@ -48,6 +52,14 @@ private slots:
   void validCellAccess();
   void invalidCoordinatesReturnNullptr();
   void differentCellsAreIndependent();
+
+  // Step 4B: descriptor -> cell mapping
+  void descriptorToCellNormalMapping();
+  void descriptorToCellBoundaries();
+  void descriptorToCellOutOfRange();
+  void descriptorToCellInvalidNumbers();
+  void descriptorToCellTwoDimensional();
+  void descriptorToCellInvalidBounds();
 };
 
 // ---------------------------------------------------------------------------
@@ -134,6 +146,129 @@ void MOMEGridTest::differentCellsAreIndependent()
   QCOMPARE(grid.cell(0, 0), const_cast<MOMECell*>(c00));
   QCOMPARE(grid.cell(5, 3), const_cast<MOMECell*>(c53));
   QCOMPARE(grid.cell(9, 9), const_cast<MOMECell*>(c99));
+}
+
+// ---------------------------------------------------------------------------
+// Step 4B: descriptor -> cell mapping
+// ---------------------------------------------------------------------------
+
+void MOMEGridTest::descriptorToCellNormalMapping()
+{
+  MOMEGrid grid(10, 10);
+
+  // Descriptor 1 is held at a fixed, valid value (bin 5) so these cases
+  // isolate descriptor 0's mapping onto the x-axis.
+  const double min0 = 0.0, max0 = 100.0;
+  const double d1 = 0.0, min1 = -10.0, max1 = 10.0;
+
+  struct Case { double d0; int expectedX; };
+  const Case cases[] = {
+    { 0.0,  0 },
+    { 10.0, 1 },
+    { 37.0, 3 },
+    { 50.0, 5 },
+    { 99.0, 9 },
+    { 100.0, 9 },
+  };
+
+  for (const auto& tc : cases) {
+    int x = -1, y = -1;
+    QVERIFY2(grid.descriptorToCell(tc.d0, min0, max0, d1, min1, max1, x, y),
+             qPrintable(QString("d0=%1 should map successfully").arg(tc.d0)));
+    QCOMPARE(x, tc.expectedX);
+    QCOMPARE(y, 5);
+  }
+}
+
+void MOMEGridTest::descriptorToCellBoundaries()
+{
+  MOMEGrid grid(10, 10);
+  int x = -1, y = -1;
+
+  // value == min -> bin 0
+  QVERIFY(grid.descriptorToCell(0.0, 0.0, 100.0, -10.0, -10.0, 10.0, x, y));
+  QCOMPARE(x, 0);
+  QCOMPARE(y, 0);
+
+  // value == max -> bin (numBins - 1)
+  QVERIFY(grid.descriptorToCell(100.0, 0.0, 100.0, 10.0, -10.0, 10.0, x, y));
+  QCOMPARE(x, 9);
+  QCOMPARE(y, 9);
+}
+
+void MOMEGridTest::descriptorToCellOutOfRange()
+{
+  MOMEGrid grid(10, 10);
+  int x = -1, y = -1;
+
+  // Out-of-range descriptor 0, valid descriptor 1: rejected, not clamped.
+  QVERIFY(!grid.descriptorToCell(101.0, 0.0, 100.0, 0.0, -10.0, 10.0, x, y));
+  QVERIFY(!grid.descriptorToCell(-1.0, 0.0, 100.0, 0.0, -10.0, 10.0, x, y));
+
+  // Valid descriptor 0, out-of-range descriptor 1: also rejected.
+  QVERIFY(!grid.descriptorToCell(50.0, 0.0, 100.0, 11.0, -10.0, 10.0, x, y));
+  QVERIFY(!grid.descriptorToCell(50.0, 0.0, 100.0, -11.0, -10.0, 10.0, x, y));
+}
+
+void MOMEGridTest::descriptorToCellInvalidNumbers()
+{
+  MOMEGrid grid(10, 10);
+  int x = -1, y = -1;
+
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const double inf = std::numeric_limits<double>::infinity();
+
+  QVERIFY(!grid.descriptorToCell(nan, 0.0, 100.0, 0.0, -10.0, 10.0, x, y));
+  QVERIFY(!grid.descriptorToCell(inf, 0.0, 100.0, 0.0, -10.0, 10.0, x, y));
+  QVERIFY(!grid.descriptorToCell(-inf, 0.0, 100.0, 0.0, -10.0, 10.0, x, y));
+
+  // NaN/Inf in the second dimension must also be rejected.
+  QVERIFY(!grid.descriptorToCell(50.0, 0.0, 100.0, nan, -10.0, 10.0, x, y));
+  QVERIFY(!grid.descriptorToCell(50.0, 0.0, 100.0, inf, -10.0, 10.0, x, y));
+  QVERIFY(!grid.descriptorToCell(50.0, 0.0, 100.0, -inf, -10.0, 10.0, x, y));
+}
+
+void MOMEGridTest::descriptorToCellTwoDimensional()
+{
+  MOMEGrid grid(10, 10);
+  int x = -1, y = -1;
+
+  // descriptor 0: [0,100], descriptor 1: [-10,10], each mapped independently.
+  QVERIFY(grid.descriptorToCell(50.0, 0.0, 100.0, 0.0, -10.0, 10.0, x, y));
+  QCOMPARE(x, 5);
+  QCOMPARE(y, 5);
+
+  QVERIFY(grid.descriptorToCell(0.0, 0.0, 100.0, -10.0, -10.0, 10.0, x, y));
+  QCOMPARE(x, 0);
+  QCOMPARE(y, 0);
+
+  QVERIFY(grid.descriptorToCell(100.0, 0.0, 100.0, 10.0, -10.0, 10.0, x, y));
+  QCOMPARE(x, 9);
+  QCOMPARE(y, 9);
+
+  // Near-boundary values checked independently per axis.
+  QVERIFY(grid.descriptorToCell(99.0, 0.0, 100.0, 9.0, -10.0, 10.0, x, y));
+  QCOMPARE(x, 9);
+  QCOMPARE(y, 9);
+
+  // One axis out of range fails the whole mapping, even if the other is valid.
+  QVERIFY(!grid.descriptorToCell(50.0, 0.0, 100.0, 11.0, -10.0, 10.0, x, y));
+}
+
+void MOMEGridTest::descriptorToCellInvalidBounds()
+{
+  MOMEGrid grid(10, 10);
+  int x = -1, y = -1;
+
+  // min == max on descriptor 0.
+  QVERIFY(!grid.descriptorToCell(5.0, 5.0, 5.0, 0.0, -10.0, 10.0, x, y));
+
+  // min > max on descriptor 0.
+  QVERIFY(!grid.descriptorToCell(5.0, 10.0, 0.0, 0.0, -10.0, 10.0, x, y));
+
+  // Invalid bounds on descriptor 1 (min == max, then min > max).
+  QVERIFY(!grid.descriptorToCell(50.0, 0.0, 100.0, 0.0, 10.0, 10.0, x, y));
+  QVERIFY(!grid.descriptorToCell(50.0, 0.0, 100.0, 0.0, 10.0, -10.0, x, y));
 }
 
 // ---------------------------------------------------------------------------

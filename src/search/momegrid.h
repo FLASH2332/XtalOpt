@@ -15,7 +15,11 @@
 #ifndef SEARCH_MOMEGRID_H
 #define SEARCH_MOMEGRID_H
 
+#include <common/compatibility/platform_compat.h>
+
 #include <QVector>
+
+#include <cmath>
 
 namespace Search {
 
@@ -49,9 +53,9 @@ public:
  * rectangular array of cells.  Dimension 0 (x) corresponds to the first
  * descriptor; dimension 1 (y) to the second.
  *
- * At this stage the grid only provides the data-structure skeleton.
- * Mapping descriptor values to (x, y) coordinates and maintaining
- * per-cell Pareto archives are implemented in later commits.
+ * descriptorToCell() maps descriptor values to (x, y) coordinates, using
+ * bounds supplied by the caller (see SearchBase::DescriptorInfo). Maintaining
+ * per-cell Pareto archives is implemented in later commits.
  *
  * @note Invalid coordinate access (out-of-range or negative indices)
  * returns @c nullptr rather than throwing an exception, following the
@@ -118,7 +122,83 @@ public:
     return &m_cells[x][y];
   }
 
+  /**
+   * Map two descriptor values to a grid cell (@p x, @p y).
+   *
+   * The bounds for each descriptor are passed in by the caller (normally
+   * read from the corresponding @c SearchBase::DescriptorInfo), so that
+   * MOMEGrid does not keep its own copy of descriptor bounds; the
+   * DescriptorInfo entries remain the single source of truth for them.
+   *
+   * @param d0 Value of descriptor dimension 0 (x-axis).
+   * @param min0 Configured minimum bound of descriptor 0.
+   * @param max0 Configured maximum bound of descriptor 0.
+   * @param d1 Value of descriptor dimension 1 (y-axis).
+   * @param min1 Configured minimum bound of descriptor 1.
+   * @param max1 Configured maximum bound of descriptor 1.
+   * @param[out] x Bin index along dimension 0 when the mapping succeeds.
+   * @param[out] y Bin index along dimension 1 when the mapping succeeds.
+   *
+   * @return true and set @p x, @p y when both values map to a valid cell.
+   * Returns false (leaving @p x, @p y unmodified) when either descriptor's
+   * bounds are invalid (non-finite, or @c min >= max), either value is
+   * non-finite, or either value falls outside its [min, max] bounds.
+   * Out-of-range values are rejected, never clamped into the grid.
+   */
+  bool descriptorToCell(double d0, double min0, double max0,
+                        double d1, double min1, double max1,
+                        int& x, int& y) const
+  {
+    int bx, by;
+    if (!valueToBin(d0, min0, max0, m_xBins, bx))
+      return false;
+    if (!valueToBin(d1, min1, max1, m_yBins, by))
+      return false;
+
+    x = bx;
+    y = by;
+    return true;
+  }
+
 private:
+  /**
+   * Map one descriptor @p value to a bin index in [0, numBins - 1].
+   *
+   *   normalized = (value - min) / (max - min)
+   *   bin = floor(normalized * numBins)
+   *
+   * with the special case that @p value == max maps to numBins - 1
+   * (floor(1.0 * numBins) would otherwise be one past the last bin).
+   *
+   * @return true and set @p bin on success. Returns false, leaving
+   * @p bin unmodified, when @p min, @p max, or @p value is non-finite,
+   * when @p min >= max (including min == max), or when @p value falls
+   * outside [min, max].
+   */
+  static bool valueToBin(double value, double min, double max, int numBins, int& bin)
+  {
+    if (!GS_ISFINITE(value) || !GS_ISFINITE(min) || !GS_ISFINITE(max))
+      return false;
+    if (min >= max)
+      return false;
+    if (value < min || value > max)
+      return false;
+
+    if (value == max) {
+      bin = numBins - 1;
+      return true;
+    }
+
+    int b = static_cast<int>(std::floor((value - min) / (max - min) * numBins));
+    if (b < 0)
+      b = 0;
+    else if (b >= numBins)
+      b = numBins - 1;
+
+    bin = b;
+    return true;
+  }
+
   int m_xBins;
   int m_yBins;
   // m_cells[x][y] — outer index is x (dim 0), inner is y (dim 1).
