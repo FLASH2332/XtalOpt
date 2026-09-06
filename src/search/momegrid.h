@@ -104,8 +104,9 @@ private:
  * descriptorToCell() maps descriptor values to (x, y) coordinates, using
  * bounds supplied by the caller (see SearchBase::DescriptorInfo). Each cell
  * (see MOMECell) holds the Pareto-optimal set of structures mapped to it.
- * Combining the two — inserting a candidate into the archive at the cell
- * its descriptors map to — is done by calling code in a later commit.
+ * insertCandidate() combines the two: it maps a candidate's descriptors to
+ * a cell, then inserts it there based on its objective values, so a
+ * candidate only ever competes against structures in its own cell.
  *
  * @note Invalid coordinate access (out-of-range or negative indices)
  * returns @c nullptr rather than throwing an exception, following the
@@ -208,6 +209,48 @@ public:
     x = bx;
     y = by;
     return true;
+  }
+
+  /**
+   * Map a candidate's descriptor values to its cell, then attempt to
+   * insert it there using its objective values.
+   *
+   * This composes descriptorToCell() (descriptors decide the cell) with
+   * MOMECell::insert() (objectives decide Pareto membership within that
+   * cell): a candidate only ever competes with structures already mapped
+   * to the same cell.
+   *
+   * @param d0,min0,max0 Descriptor-0 value and bounds (see descriptorToCell()).
+   * @param d1,min1,max1 Descriptor-1 value and bounds (see descriptorToCell()).
+   * @param objectives Candidate's objective values (see MOMECell::insert()).
+   * @param structure Candidate structure handle stored as the archive payload.
+   * @param[out] x,y Set to the mapped cell coordinates whenever the
+   * descriptor mapping succeeds, regardless of whether the candidate is
+   * then actually accepted into that cell. Left unmodified if the mapping
+   * itself fails.
+   *
+   * @return true if @p structure was inserted into the cell at (@p x, @p y).
+   * Returns false when the descriptor mapping fails (see descriptorToCell()),
+   * or when the mapping succeeds but MOMECell::insert() rejects the
+   * candidate (invalid objectives, or dominated by an existing member of
+   * that cell).
+   */
+  bool insertCandidate(double d0, double min0, double max0,
+                       double d1, double min1, double max1,
+                       const std::vector<double>& objectives,
+                       Structure* structure,
+                       int& x, int& y)
+  {
+    int cx, cy;
+    if (!descriptorToCell(d0, min0, max0, d1, min1, max1, cx, cy))
+      return false;
+
+    x = cx;
+    y = cy;
+
+    MOMECell* target = cell(cx, cy);
+    Q_ASSERT_X(target, Q_FUNC_INFO, "descriptorToCell() returned an out-of-range cell");
+    return target->insert(objectives, structure);
   }
 
 private:

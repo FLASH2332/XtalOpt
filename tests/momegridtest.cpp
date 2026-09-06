@@ -39,9 +39,14 @@ using namespace Search;
  *   isolation (with plain int payloads) in paretosettest.cpp; the tests
  *   here only check that MOMECell forwards to it correctly.
  *
+ * Also covers (Step 4D):
+ *   - insertCandidate(): descriptor mapping composed with per-cell Pareto
+ *   insertion, including that candidates in different cells never compete.
+ *
  * Out of scope (covered in later steps):
- *   - Descriptor-driven cell lookup feeding into insertion (Step 4D)
- *   - SearchBase / QueueManager integration
+ *   - SearchBase / QueueManager integration (structure completes ->
+ *   descriptors available -> insertCandidate() gets called)
+ *   - Parent selection reading from the archive
  */
 class MOMEGridTest : public QObject
 {
@@ -72,6 +77,14 @@ private slots:
   void cellInsertAcceptsAndRejects();
   void cellCapacityMatchesFixedConstant();
   void cellStructuresReflectsCurrentMembers();
+
+  // Step 4D: candidate insertion into the MOME archive
+  void insertCandidateMapsAndInserts();
+  void insertCandidateFailsOnInvalidDescriptors();
+  void insertCandidateFailsOnInvalidObjectives();
+  void insertCandidateRejectsDominatedWithinSameCell();
+  void insertCandidateOnlyCompetesWithinSameCell();
+  void insertCandidateRespectsCellCapacity();
 };
 
 // ---------------------------------------------------------------------------
@@ -329,6 +342,143 @@ void MOMEGridTest::cellStructuresReflectsCurrentMembers()
   QCOMPARE(members.size(), 2);
   QVERIFY(members.contains(a));
   QVERIFY(members.contains(b));
+}
+
+// ---------------------------------------------------------------------------
+// Step 4D: candidate insertion into the MOME archive
+// ---------------------------------------------------------------------------
+
+void MOMEGridTest::insertCandidateMapsAndInserts()
+{
+  MOMEGrid grid(10, 10);
+  Structure* a = new Structure;
+
+  int x = -1, y = -1;
+  QVERIFY(grid.insertCandidate(50.0, 0.0, 100.0, 0.0, -10.0, 10.0,
+                               { 1.0, 1.0 }, a, x, y));
+  QCOMPARE(x, 5);
+  QCOMPARE(y, 5);
+
+  const MOMECell* c = grid.cell(5, 5);
+  QVERIFY(c != nullptr);
+  QCOMPARE(c->size(), 1);
+  QVERIFY(c->structures().contains(a));
+}
+
+void MOMEGridTest::insertCandidateFailsOnInvalidDescriptors()
+{
+  MOMEGrid grid(10, 10);
+  Structure* a = new Structure;
+
+  int x = -1, y = -1;
+  // d0 out of range: the descriptor mapping fails, so x/y are left untouched.
+  QVERIFY(!grid.insertCandidate(101.0, 0.0, 100.0, 0.0, -10.0, 10.0,
+                                { 1.0, 1.0 }, a, x, y));
+  QCOMPARE(x, -1);
+  QCOMPARE(y, -1);
+
+  // Invalid bounds (min == max) on descriptor 1.
+  QVERIFY(!grid.insertCandidate(50.0, 0.0, 100.0, 0.0, 5.0, 5.0,
+                                { 1.0, 1.0 }, a, x, y));
+  QCOMPARE(x, -1);
+  QCOMPARE(y, -1);
+
+  // Nothing should have been inserted anywhere in the grid.
+  for (int cx = 0; cx < grid.xBins(); ++cx) {
+    for (int cy = 0; cy < grid.yBins(); ++cy)
+      QVERIFY(grid.cell(cx, cy)->isEmpty());
+  }
+}
+
+void MOMEGridTest::insertCandidateFailsOnInvalidObjectives()
+{
+  MOMEGrid grid(10, 10);
+  Structure* a = new Structure;
+
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+
+  int x = -1, y = -1;
+  // Descriptor mapping succeeds (x/y ARE set), but the objectives are
+  // invalid, so the cell's Pareto set rejects the candidate.
+  QVERIFY(!grid.insertCandidate(50.0, 0.0, 100.0, 0.0, -10.0, 10.0,
+                                { nan, 1.0 }, a, x, y));
+  QCOMPARE(x, 5);
+  QCOMPARE(y, 5);
+  QVERIFY(grid.cell(5, 5)->isEmpty());
+}
+
+void MOMEGridTest::insertCandidateRejectsDominatedWithinSameCell()
+{
+  MOMEGrid grid(10, 10);
+  Structure* a = new Structure;
+  Structure* b = new Structure;
+
+  int xa = -1, ya = -1;
+  QVERIFY(grid.insertCandidate(50.0, 0.0, 100.0, 0.0, -10.0, 10.0,
+                               { 1.0, 1.0 }, a, xa, ya));
+
+  // Slightly different descriptor values, but the same cell; objectives
+  // (2,2) are dominated by the already-present (1,1): rejected.
+  int xb = -1, yb = -1;
+  QVERIFY(!grid.insertCandidate(51.0, 0.0, 100.0, 1.0, -10.0, 10.0,
+                                { 2.0, 2.0 }, b, xb, yb));
+
+  QCOMPARE(xb, xa);
+  QCOMPARE(yb, ya);
+
+  const MOMECell* c = grid.cell(xa, ya);
+  QCOMPARE(c->size(), 1);
+  QVERIFY(c->structures().contains(a));
+  QVERIFY(!c->structures().contains(b));
+}
+
+void MOMEGridTest::insertCandidateOnlyCompetesWithinSameCell()
+{
+  MOMEGrid grid(10, 10);
+  Structure* a = new Structure;
+  Structure* b = new Structure;
+
+  int xa = -1, ya = -1;
+  QVERIFY(grid.insertCandidate(10.0, 0.0, 100.0, 0.0, -10.0, 10.0,
+                               { 5.0, 5.0 }, a, xa, ya));
+
+  // (1,1) would dominate (5,5) if they landed in the same cell, but this
+  // candidate maps to a different cell (d0=90 vs d0=10), so it competes
+  // with nothing there and must succeed independently.
+  int xb = -1, yb = -1;
+  QVERIFY(grid.insertCandidate(90.0, 0.0, 100.0, 0.0, -10.0, 10.0,
+                               { 1.0, 1.0 }, b, xb, yb));
+
+  QVERIFY(xa != xb);
+
+  const MOMECell* ca = grid.cell(xa, ya);
+  QCOMPARE(ca->size(), 1);
+  QVERIFY(ca->structures().contains(a));
+
+  const MOMECell* cb = grid.cell(xb, yb);
+  QCOMPARE(cb->size(), 1);
+  QVERIFY(cb->structures().contains(b));
+}
+
+void MOMEGridTest::insertCandidateRespectsCellCapacity()
+{
+  MOMEGrid grid(10, 10);
+
+  // 11 mutually non-dominated points along a trade-off curve
+  // i -> (i, 10-i), all mapped into the same descriptor cell.
+  for (int i = 0; i <= 10; ++i) {
+    Structure* s = new Structure;
+    int x = -1, y = -1;
+    QVERIFY(grid.insertCandidate(50.0, 0.0, 100.0, 0.0, -10.0, 10.0,
+                                 { static_cast<double>(i), static_cast<double>(10 - i) },
+                                 s, x, y));
+    QCOMPARE(x, 5);
+    QCOMPARE(y, 5);
+  }
+
+  // The 11th insertion pushed the cell one past capacity; one member was
+  // evicted, so the cell must hold exactly its fixed capacity.
+  QCOMPARE(grid.cell(5, 5)->size(), MOMECell::kParetoSetCapacity);
 }
 
 // ---------------------------------------------------------------------------
