@@ -13,6 +13,7 @@
  ***********************************************************************/
 
 #include <search/momegrid.h>
+#include <search/structure.h>
 
 #include <QtTest>
 
@@ -32,8 +33,14 @@ using namespace Search;
  * Also covers (Step 4B):
  *   - Descriptor → (x,y) mapping via descriptorToCell()
  *
+ * Also covers (Step 4C):
+ *   - MOMECell's Pareto-set wiring, using real Structure* payloads.
+ *   The underlying dominance/capacity/eviction logic is exercised in
+ *   isolation (with plain int payloads) in paretosettest.cpp; the tests
+ *   here only check that MOMECell forwards to it correctly.
+ *
  * Out of scope (covered in later steps):
- *   - Pareto dominance or archive logic
+ *   - Descriptor-driven cell lookup feeding into insertion (Step 4D)
  *   - SearchBase / QueueManager integration
  */
 class MOMEGridTest : public QObject
@@ -60,6 +67,11 @@ private slots:
   void descriptorToCellInvalidNumbers();
   void descriptorToCellTwoDimensional();
   void descriptorToCellInvalidBounds();
+
+  // Step 4C: MOMECell Pareto-set wiring
+  void cellInsertAcceptsAndRejects();
+  void cellCapacityMatchesFixedConstant();
+  void cellStructuresReflectsCurrentMembers();
 };
 
 // ---------------------------------------------------------------------------
@@ -269,6 +281,54 @@ void MOMEGridTest::descriptorToCellInvalidBounds()
   // Invalid bounds on descriptor 1 (min == max, then min > max).
   QVERIFY(!grid.descriptorToCell(50.0, 0.0, 100.0, 0.0, 10.0, 10.0, x, y));
   QVERIFY(!grid.descriptorToCell(50.0, 0.0, 100.0, 0.0, 10.0, -10.0, x, y));
+}
+
+// ---------------------------------------------------------------------------
+// Step 4C: MOMECell Pareto-set wiring
+// ---------------------------------------------------------------------------
+
+void MOMEGridTest::cellInsertAcceptsAndRejects()
+{
+  MOMECell cell;
+  QVERIFY(cell.isEmpty());
+
+  Structure* a = new Structure;
+  Structure* b = new Structure;
+
+  QVERIFY(cell.insert({ 1.0, 1.0 }, a));
+  QCOMPARE(cell.size(), 1);
+
+  // (2,2) is dominated by the already-present (1,1): rejected.
+  QVERIFY(!cell.insert({ 2.0, 2.0 }, b));
+  QCOMPARE(cell.size(), 1);
+  QVERIFY(!cell.isEmpty());
+}
+
+void MOMEGridTest::cellCapacityMatchesFixedConstant()
+{
+  MOMECell cell;
+
+  // Step 4C fixes the per-cell Pareto-set capacity at 10.
+  QCOMPARE(cell.capacity(), 10);
+  QCOMPARE(cell.capacity(), MOMECell::kParetoSetCapacity);
+}
+
+void MOMEGridTest::cellStructuresReflectsCurrentMembers()
+{
+  MOMECell cell;
+
+  Structure* a = new Structure;
+  Structure* b = new Structure;
+
+  // Neither dominates the other: both are kept.
+  QVERIFY(cell.insert({ 1.0, 2.0 }, a));
+  QVERIFY(cell.insert({ 2.0, 1.0 }, b));
+  QCOMPARE(cell.size(), 2);
+
+  const QVector<Structure*> members = cell.structures();
+  QCOMPARE(members.size(), 2);
+  QVERIFY(members.contains(a));
+  QVERIFY(members.contains(b));
 }
 
 // ---------------------------------------------------------------------------

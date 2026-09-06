@@ -17,32 +17,80 @@
 
 #include <common/compatibility/platform_compat.h>
 
+#include <search/paretoset.h>
+
 #include <QVector>
 
 #include <cmath>
+#include <vector>
 
 namespace Search {
+
+// Only ever stored/compared by pointer identity here (as the ParetoSet
+// payload); the full definition is never needed in this header.
+class Structure;
 
 /**
  * @class MOMECell momegrid.h <search/momegrid.h>
  * @brief One cell in the MAP-Elites grid.
  *
- * A cell is an empty container for one (x, y) location in the 2D
- * descriptor space.  Pareto-archive contents will be added in a later
- * commit; this class only defines the per-cell container.
+ * A cell holds the Pareto-optimal set of structures whose descriptors map
+ * to its (x, y) location. Membership is decided from each structure's
+ * *objective* values, not its descriptors (descriptors only ever decide
+ * which cell a structure belongs to; see MOMEGrid::descriptorToCell()).
+ *
+ * The per-cell set has a fixed capacity (see kParetoSetCapacity); once
+ * full, insert() evicts the least-crowded member to make room for a new
+ * non-dominated candidate. That capacity is a placeholder fixed value for
+ * now and may become configurable in a later step.
  */
 class MOMECell
 {
 public:
-  MOMECell() = default;
+  static constexpr int kParetoSetCapacity = 10;
+
+  MOMECell()
+    : m_paretoSet(kParetoSetCapacity)
+  {
+  }
+
+  /** @return true if the cell contains no structures yet. */
+  bool isEmpty() const { return m_paretoSet.isEmpty(); }
+
+  /** @return The number of structures currently held in this cell. */
+  int size() const { return m_paretoSet.size(); }
+
+  /** @return The fixed maximum number of structures this cell will hold. */
+  int capacity() const { return m_paretoSet.capacity(); }
 
   /**
-   * @return true if the cell contains no structures yet.
+   * Attempt to insert @p structure, whose objective values are @p objectives,
+   * into this cell's Pareto set.
    *
-   * In this step the cell is always empty; the method exists so that
-   * later code that populates the cell can test it without an API change.
+   * @return true if inserted — possibly displacing structures @p structure
+   * dominates, or (if the cell was already at capacity) the least-crowded
+   * structure. Returns false, leaving the cell unchanged, when @p objectives
+   * is empty, contains a non-finite (NaN/Inf) value, disagrees in size with
+   * the objective count of structures already in this cell, or is dominated
+   * by a structure already in this cell.
    */
-  bool isEmpty() const { return true; }
+  bool insert(const std::vector<double>& objectives, Structure* structure)
+  {
+    return m_paretoSet.insert(objectives, structure);
+  }
+
+  /** @return The structures currently held in this cell, in no particular order. */
+  QVector<Structure*> structures() const
+  {
+    QVector<Structure*> result;
+    result.reserve(m_paretoSet.size());
+    for (const auto& entry : m_paretoSet.entries())
+      result.push_back(entry.payload);
+    return result;
+  }
+
+private:
+  ParetoSet<Structure*> m_paretoSet;
 };
 
 /**
@@ -54,8 +102,10 @@ public:
  * descriptor; dimension 1 (y) to the second.
  *
  * descriptorToCell() maps descriptor values to (x, y) coordinates, using
- * bounds supplied by the caller (see SearchBase::DescriptorInfo). Maintaining
- * per-cell Pareto archives is implemented in later commits.
+ * bounds supplied by the caller (see SearchBase::DescriptorInfo). Each cell
+ * (see MOMECell) holds the Pareto-optimal set of structures mapped to it.
+ * Combining the two — inserting a candidate into the archive at the cell
+ * its descriptors map to — is done by calling code in a later commit.
  *
  * @note Invalid coordinate access (out-of-range or negative indices)
  * returns @c nullptr rather than throwing an exception, following the
