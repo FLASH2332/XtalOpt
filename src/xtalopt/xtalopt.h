@@ -477,6 +477,7 @@ private:
   void requestFullEvaluation();
   void requestEvaluationAfterFail(Search::Structure* structure);
   bool evaluateStructuresIncrementally(const QSet<Search::Structure*>& structures);
+  void insertIntoMomeArchiveIfReady(Search::Structure* structure);
   // Write all XtalOpt state groups to filename.
   bool writeStateFileContents(const QString& filename);
   bool writeFreshStateFile(const QString& filename);

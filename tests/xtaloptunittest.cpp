@@ -315,6 +315,7 @@ private slots:
   void constraintInputSyntax();
   void descriptorInputSyntax();
   void momeConfiguration();
+  void momeArchiveInsertionOnEvaluation();
   void removeUserObjectivePreservesBuiltinObjective();
   void runtimeOptionsApplyRuntimeChangeableKeys();
   void rebuildDerivedSettingsClearsCachesWhenInputsEmpty();
@@ -1282,6 +1283,93 @@ void XtalOptUnitTest::momeConfiguration()
     QCOMPARE(reloaded.getDescriptorsNum(), 2);
     QVERIFY(reloaded.validateMomeConfiguration());
   }
+}
+
+void XtalOptUnitTest::momeArchiveInsertionOnEvaluation()
+{
+  // End-to-end: structures with descriptor values already computed (as
+  // finishDescriptorCalculations() would leave them), pushed through the
+  // real evaluation pass that finalizes objective values, must land in
+  // the MOME archive cell their descriptors map to and compete there.
+  QTemporaryDir tempDir;
+  QVERIFY(tempDir.isValid());
+
+  XtalOpt opt;
+  opt.setLocWorkDir(tempDir.path());
+
+  CellComp comp;
+  comp.setCompositionEntry("Ti", 22, 1);
+  comp.setCompositionEntry("O", 8, 2);
+  opt.compList().append(comp);
+
+  QVERIFY(opt.setOptimizationTypeText("mome"));
+  QVERIFY(opt.processInputDescriptor("d0 /bin/true d0.out 0.0 100.0"));
+  QVERIFY(opt.processInputDescriptor("d1 /bin/true d1.out -10.0 10.0"));
+  opt.setMomeGridXBins(10);
+  opt.setMomeGridYBins(10);
+  QVERIFY(opt.validateMomeConfiguration());
+  opt.resetMomeArchive();
+
+  // Same hull-building shape as resultsOutputsAreStable(), so the hull
+  // calculation itself is a known-good setup; only descriptor values are
+  // new here.
+  auto buildXtal = [](uint generation, uint id, int index, int nTi, int nO,
+                      double enthalpy, double d0, double d1) -> Xtal* {
+    Xtal* xtal = new Xtal(5.0, 5.0, 5.0, 90.0, 90.0, 90.0);
+    for (int i = 0; i < nTi; ++i) {
+      Atoms::Atom& atom = xtal->addAtom();
+      atom.setAtomicNumber(22);
+      atom.setPos(Common::Vector3(0.5 * i, 0.0, 0.0));
+    }
+    for (int i = 0; i < nO; ++i) {
+      Atoms::Atom& atom = xtal->addAtom();
+      atom.setAtomicNumber(8);
+      atom.setPos(Common::Vector3(0.0, 0.5 * (i + 1), 0.0));
+    }
+    xtal->setGeneration(generation);
+    xtal->setIDNumber(id);
+    xtal->setIndex(index);
+    xtal->setStatus(Xtal::Optimized);
+    xtal->setEnthalpy(enthalpy);
+    xtal->setChangedSinceSimChecked(false);
+    xtal->findSpaceGroup();
+    xtal->setStrucDescriptorValuesVec({ d0, d1 });
+    xtal->setStrucDescriptorState(Structure::Ds_Retain);
+    return xtal;
+  };
+
+  QList<Structure*> structures;
+  structures << buildXtal(1, 1, 0, 1, 0, -1.0, 10.0, -8.0)   // pure Ti      -> cell (1,1)
+             << buildXtal(1, 2, 1, 0, 1, -0.5, 20.0, -6.0)   // pure O       -> cell (2,2)
+             << buildXtal(1, 3, 2, 1, 2, -6.0, 50.0, 0.0)    // TiO2, on hull    -> cell (5,5)
+             << buildXtal(2, 1, 3, 1, 1, -3.0, 70.0, 5.0)    // TiO          -> cell (7,7)
+             << buildXtal(2, 2, 4, 2, 1, -2.5, 30.0, -2.0)   // Ti2O         -> cell (3,4)
+             << buildXtal(2, 3, 5, 1, 2, -4.0, 51.0, 1.0);   // TiO2, above hull -> cell (5,5) too
+
+  {
+    const bool wasBlocked = opt.tracker()->blockSignals(true);
+    QWriteLocker trackerLocker(opt.tracker()->rwLock());
+    for (auto* structure : structures)
+      opt.tracker()->append(structure);
+    opt.tracker()->blockSignals(wasBlocked);
+  }
+
+  QVERIFY(opt.refreshStructureEvaluationData());
+
+  // Distinct cells: exactly the one structure mapped there.
+  QCOMPARE(opt.momeArchiveCellSize(1, 1), 1);
+  QCOMPARE(opt.momeArchiveCellSize(2, 2), 1);
+  QCOMPARE(opt.momeArchiveCellSize(7, 7), 1);
+  QCOMPARE(opt.momeArchiveCellSize(3, 4), 1);
+
+  // Shared cell (5,5): both TiO2 structures map here, but only one
+  // objective (the built-in above-hull distance) is active, so this is a
+  // single-objective competition. The on-hull structure (distance 0)
+  // strictly dominates the above-hull one (distance > 0): only 1 survives.
+  QCOMPARE(opt.momeArchiveCellSize(5, 5), 1);
+
+  // A cell nothing was mapped to has no archive entry.
+  QCOMPARE(opt.momeArchiveCellSize(0, 0), 0);
 }
 
 void XtalOptUnitTest::runtimeOptionsApplyRuntimeChangeableKeys()

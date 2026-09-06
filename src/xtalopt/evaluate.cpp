@@ -55,6 +55,46 @@ Xtal* xtalOrFlagged(Structure* structure, const char* context)
 
 } // namespace
 
+// Map @p structure to its MOME cell and insert it into that cell's Pareto
+//   archive, using its already-finalized objective and descriptor values.
+// A no-op when MOME is not the active optimization type, when the
+//   structure's descriptors are not (both) ready, or when it has no
+//   optimizable objectives; see SearchBase::insertIntoMomeArchive() for the
+//   remaining rejection cases (invalid values, dominated candidate, ...).
+void XtalOpt::insertIntoMomeArchiveIfReady(Structure* structure)
+{
+  if (getOptimizationType() != Search::SearchBase::OT_MOME)
+    return;
+
+  QList<double> descriptorValues;
+  {
+    QReadLocker structureLocker(&structure->lock());
+    if (structure->getStrucDescriptorState() != Structure::Ds_Retain ||
+        structure->getStrucDescriptorNumber() != 2)
+      return;
+    descriptorValues = structure->getStrucDescriptorValuesVec();
+  }
+
+  const int objNumb = getOptimizableObjectivesNum();
+  if (objNumb == 0)
+    return;
+
+  // Reuses the same Min/Max sign convention as whole-population Pareto
+  //   selection (see buildObjDataFromPool()), so dominance comparisons
+  //   inside the archive are consistent regardless of objective direction.
+  // Not normalized (see normalizeObjData()): that rescaling is relative to
+  //   the current population and is meaningless for a single structure;
+  //   dominance comparisons are unaffected by omitting it.
+  std::vector<std::vector<double>> objData;
+  QList<QString> strTags;
+  if (!buildObjDataFromPool({ structure }, objNumb, objData, strTags))
+    return;
+
+  int x = -1, y = -1;
+  insertIntoMomeArchive(descriptorValues.at(0), descriptorValues.at(1),
+                       objData.at(0), structure, x, y);
+}
+
 void XtalOpt::updateStructureEvaluationInfo()
 {
   // Take the collected evaluation requests and clear the markers.
@@ -198,6 +238,8 @@ bool XtalOpt::evaluateStructuresIncrementally(const QSet<Structure*>& structures
 
     // The structure can be added to the parent pool now with values completed.
     refreshParentPoolMembership(xtal);
+    if (isValid)
+      insertIntoMomeArchiveIfReady(xtal);
   }
 
   // The parent pool changed; the selection table is rebuilt at the next selection round.
@@ -328,6 +370,9 @@ bool XtalOpt::refreshStructureEvaluationData()
     if (!xtal)
       continue;
     optimizedStructures[structureIndex]->setStrucObjValuesVec(objectiveValuesList[i]);
+    lock.unlock();
+
+    insertIntoMomeArchiveIfReady(optimizedStructures[structureIndex]);
   }
 
   // The new values may change the structures' pool eligibility.

@@ -671,6 +671,23 @@ public:
                                           objectives, structure, x, y);
   }
 
+  /**
+   * @return The number of structures currently held in the MOME archive
+   * cell (@p x, @p y). Returns -1 if no archive has been built yet (see
+   * resetMomeArchive()) or (@p x, @p y) is out of range.
+   *
+   * Diagnostic read access only (used by tests); a later step will give
+   * parent selection whatever richer read access it actually needs.
+   */
+  int momeArchiveCellSize(int x, int y) const
+  {
+    QReadLocker locker(&m_momeArchiveLock);
+    if (!m_momeArchive)
+      return -1;
+    const MOMECell* c = m_momeArchive->cell(x, y);
+    return c ? c->size() : -1;
+  }
+
   //
   // QueueManager settings
   //
