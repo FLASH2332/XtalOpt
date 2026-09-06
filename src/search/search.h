@@ -1509,6 +1509,7 @@ private:
 
   void rebuildParentSelectionData(const QList<Structure*>& structures);
   bool parentPoolEligible(Structure* s) const;
+  Structure* selectParentFromMomeArchive() const;
   ParentSelectionData m_parentSelectionData;
   // Structures eligible as parents: kept up to date by refreshParentPoolMembership.
   QSet<Structure*> m_parentPool;

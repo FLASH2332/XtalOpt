@@ -1225,8 +1225,42 @@ void SearchBase::rebuildParentSelectionData(const QList<Structure*>& structures)
   m_parentSelectionData = std::move(table);
 }
 
+Structure* SearchBase::selectParentFromMomeArchive() const
+{
+  QReadLocker locker(&m_momeArchiveLock);
+  if (!m_momeArchive)
+    return nullptr;
+
+  // Standard MAP-Elites/MOME convention: pick a uniformly random *occupied
+  //   cell*, not a uniformly random archived structure. This gives every
+  //   discovered niche equal selection pressure regardless of how many
+  //   structures happen to share it, which is the whole point of the
+  //   descriptor grid (illumination, not just optimization).
+  QList<QPair<int, int>> occupied;
+  for (int x = 0; x < m_momeArchive->xBins(); ++x) {
+    for (int y = 0; y < m_momeArchive->yBins(); ++y) {
+      const MOMECell* cell = m_momeArchive->cell(x, y);
+      if (cell && !cell->isEmpty())
+        occupied.append(qMakePair(x, y));
+    }
+  }
+  if (occupied.isEmpty())
+    return nullptr;
+
+  const QPair<int, int>& coord = occupied.at(Common::getRandUInt(0, occupied.size() - 1));
+  const MOMECell* cell = m_momeArchive->cell(coord.first, coord.second);
+  const QVector<Structure*> members = cell->structures();
+  // cell was just confirmed non-empty above, so this is never empty.
+  return members.at(Common::getRandUInt(0, members.size() - 1));
+}
+
 Structure* SearchBase::selectParentStructure(size_t poolSize)
 {
+  // MOME uses its own archive-based selection, entirely separate from the
+  //   pool/Pareto/scalar machinery below.
+  if (m_optimizationType == OT_MOME)
+    return selectParentFromMomeArchive();
+
   // Select a parent structure from the in-memory parent pool.
   //
   // We compute scalar probabilities from both the basic generalized fitness

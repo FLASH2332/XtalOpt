@@ -501,6 +501,7 @@ private slots:
   void descriptorExecutionAndOutputParsing();
   void queueManagerRunsDescriptorLifecycle();
   void momeArchiveWiring();
+  void momeParentSelection();
 };
 
 void SearchBaseTest::initTestCase()
@@ -1273,6 +1274,61 @@ void SearchBaseTest::momeArchiveWiring()
   m_opt->setOptimizationType(Search::SearchBase::OT_Basic);
   m_opt->resetMomeArchive();
   QVERIFY(!m_opt->insertIntoMomeArchive(50.0, 0.0, { 1.0, 1.0 }, &a, x, y));
+}
+
+void SearchBaseTest::momeParentSelection()
+{
+  QVERIFY(m_opt != nullptr);
+
+  m_opt->setOptimizationType(Search::SearchBase::OT_MOME);
+  m_opt->resetDescriptors();
+  m_opt->addDescriptor("d0", "/bin/true", "d0.out", 0.0, 100.0);
+  m_opt->addDescriptor("d1", "/bin/true", "d1.out", -10.0, 10.0);
+  m_opt->setMomeGridXBins(10);
+  m_opt->setMomeGridYBins(10);
+  m_opt->resetMomeArchive();
+
+  // An empty archive has nothing to select from.
+  QVERIFY(m_opt->selectParentStructure(1) == nullptr);
+
+  Structure a, b, c;
+  int x = -1, y = -1;
+
+  // Single occupied cell, single member: selection is deterministic.
+  QVERIFY(m_opt->insertIntoMomeArchive(50.0, 0.0, { 1.0, 1.0 }, &a, x, y));
+  QCOMPARE(x, 5);
+  QCOMPARE(y, 5);
+  for (int i = 0; i < 20; ++i)
+    QCOMPARE(m_opt->selectParentStructure(1), &a);
+
+  // Same cell, second mutually non-dominated member: selection always
+  // returns one of the two, never anything else.
+  QVERIFY(m_opt->insertIntoMomeArchive(51.0, 1.0, { 2.0, 0.5 }, &b, x, y));
+  QCOMPARE(m_opt->momeArchiveCellSize(5, 5), 2);
+  for (int i = 0; i < 50; ++i) {
+    Structure* picked = m_opt->selectParentStructure(1);
+    QVERIFY(picked == &a || picked == &b);
+  }
+
+  // A second, distinct occupied cell: selection must be uniform over
+  // *occupied cells*, not over archived structures, so with only 2 cells
+  // (one holding 2 structures, the other holding 1), the single-member
+  // cell's structure must be reachable about as often as the 2-member
+  // cell as a whole.
+  QVERIFY(m_opt->insertIntoMomeArchive(90.0, -5.0, { 0.0, 0.0 }, &c, x, y));
+  QCOMPARE(x, 9);
+  QCOMPARE(y, 2);
+
+  bool sawA = false, sawB = false, sawC = false;
+  for (int i = 0; i < 300; ++i) {
+    Structure* picked = m_opt->selectParentStructure(1);
+    QVERIFY(picked == &a || picked == &b || picked == &c);
+    if (picked == &a) sawA = true;
+    else if (picked == &b) sawB = true;
+    else if (picked == &c) sawC = true;
+  }
+  QVERIFY(sawA || sawB); // the (5,5) cell was reachable
+  QVERIFY(sawC);         // the (9,2) cell was reachable too
 }
 
 void SearchBaseTest::descriptorExecutionAndOutputParsing()
