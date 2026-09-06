@@ -139,21 +139,29 @@ public:
 
   /**
    * Definition of one user-defined descriptor calculation script.
+   *
+   * min/max define the descriptor's bounds for MOME grid mapping (the
+   * range of values the grid's axis for this descriptor spans).
    */
   struct DescriptorInfo
   {
     DescriptorInfo()
+      : min(0.0), max(0.0)
     {
     }
 
-    DescriptorInfo(const QString& descriptorName, const QString& executable, const QString& outputFile)
-      : name(descriptorName), exe(executable), out(outputFile)
+    DescriptorInfo(const QString& descriptorName, const QString& executable, const QString& outputFile,
+                  double descriptorMin = 0.0, double descriptorMax = 0.0)
+      : name(descriptorName), exe(executable), out(outputFile),
+        min(descriptorMin), max(descriptorMax)
     {
     }
 
     QString name;
     QString exe;
     QString out;
+    double min;
+    double max;
   };
 
   /**
@@ -594,15 +602,17 @@ public:
 
   // User-defined descriptors: retrieve and modify descriptors
   void addDescriptor(const QString& name = QString(), const QString& exe = QString(),
-                     const QString& out = QString())
+                     const QString& out = QString(), double min = 0.0, double max = 0.0)
   {
-    m_descriptors.push_back(DescriptorInfo(name, exe, out));
+    m_descriptors.push_back(DescriptorInfo(name, exe, out, min, max));
   }
 
   int getDescriptorsNum() const { return m_descriptors.size(); }
   QString getDescriptorName(int i) const { return m_descriptors.at(i).name; }
   QString getDescriptorExe(int i) const { return m_descriptors.at(i).exe; }
   QString getDescriptorOut(int i) const { return m_descriptors.at(i).out; }
+  double  getDescriptorMin(int i) const { return m_descriptors.at(i).min; }
+  double  getDescriptorMax(int i) const { return m_descriptors.at(i).max; }
   void resetDescriptors() { m_descriptors.clear(); }
   void removeDescriptor(int i) { m_descriptors.removeAt(i); }
 

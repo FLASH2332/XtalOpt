@@ -1879,6 +1879,33 @@ bool XtalOpt::validateConstraintDefinition(const QString& exe, const QString& ou
   return true;
 }
 
+bool XtalOpt::validateDescriptorDefinition(const QString& name, const QString& exe, const QString& out,
+                                           double min, double max, QString* errorMessage) const
+{
+  if (name.trimmed().isEmpty()) {
+    if (errorMessage)
+      *errorMessage = "descriptor name cannot be empty";
+    return false;
+  }
+
+  if (!validateScriptFilename(out, "descriptor", errorMessage))
+    return false;
+
+  if (!GS_ISFINITE(min) || !GS_ISFINITE(max)) {
+    if (errorMessage)
+      *errorMessage = "descriptor min/max must be finite numbers";
+    return false;
+  }
+
+  if (min >= max) {
+    if (errorMessage)
+      *errorMessage = "descriptor min must be less than max";
+    return false;
+  }
+
+  return true;
+}
+
 bool XtalOpt::processInputObjectives(QString s)
 {
   // This function processes the objective entries from a string
@@ -1975,8 +2002,9 @@ bool XtalOpt::processInputConstraint(QString s)
 bool XtalOpt::processInputDescriptor(QString s)
 {
   QStringList sline = s.split(" ", QtCompat::SkipEmptyParts);
-  if (sline.size() != 3) {
-    Common::error("descriptor entry must contain 3 fields: <name> <executable> <output_file>");
+  if (sline.size() != 5) {
+    Common::error("descriptor entry must contain 5 fields: "
+                  "<name> <executable> <output_file> <min> <max>");
     return false;
   }
 
@@ -1984,18 +2012,21 @@ bool XtalOpt::processInputDescriptor(QString s)
   const QString exe = sline.at(1).trimmed();
   const QString out = sline.at(2).trimmed();
 
-  if (name.isEmpty()) {
-    Common::error("descriptor name cannot be empty");
+  bool minOk, maxOk;
+  const double min = sline.at(3).toDouble(&minOk);
+  const double max = sline.at(4).toDouble(&maxOk);
+  if (!minOk || !maxOk) {
+    Common::error("descriptor min/max must be finite numbers");
     return false;
   }
 
   QString err;
-  if (!validateScriptFilename(out, "descriptor", &err)) {
+  if (!validateDescriptorDefinition(name, exe, out, min, max, &err)) {
     Common::error(err);
     return false;
   }
 
-  addDescriptor(name, exe, out);
+  addDescriptor(name, exe, out, min, max);
   return true;
 }
 
@@ -2072,13 +2103,15 @@ QStringList XtalOpt::constraintLines() const
   return out;
 }
 
-// Process one descriptor as the "name exe out".
+// Process one descriptor as the "name exe out min max".
 //   The same format is parsed back by processInputDescriptor().
 QString XtalOpt::descriptorEntryToText(int descriptorIndex) const
 {
   return getDescriptorName(descriptorIndex) + " " +
          getDescriptorExe(descriptorIndex) + " " +
-         getDescriptorOut(descriptorIndex);
+         getDescriptorOut(descriptorIndex) + " " +
+         QString::number(getDescriptorMin(descriptorIndex), 'g', std::numeric_limits<double>::max_digits10) + " " +
+         QString::number(getDescriptorMax(descriptorIndex), 'g', std::numeric_limits<double>::max_digits10);
 }
 
 QStringList XtalOpt::descriptorLines() const

@@ -1113,32 +1113,73 @@ void XtalOptUnitTest::descriptorInputSyntax()
   opt.resetDescriptors();
   QCOMPARE(opt.getDescriptorsNum(), 0);
 
-  // Valid single descriptor
-  QVERIFY(opt.processInputDescriptor("density ./calc_density.sh density.out"));
+  // Valid single descriptor (5-token syntax: name exe out min max)
+  QVERIFY(opt.processInputDescriptor("density ./calc_density.sh density.out 0.0 5.0"));
   QCOMPARE(opt.getDescriptorsNum(), 1);
   QCOMPARE(opt.getDescriptorName(0), QString("density"));
   QCOMPARE(opt.getDescriptorExe(0), QString("./calc_density.sh"));
   QCOMPARE(opt.getDescriptorOut(0), QString("density.out"));
+  QCOMPARE(opt.getDescriptorMin(0), 0.0);
+  QCOMPARE(opt.getDescriptorMax(0), 5.0);
 
-  // Multiple descriptors
-  QVERIFY(opt.processInputDescriptor("bandgap ./calc_bandgap.py gap.out"));
+  // Multiple descriptors, each with independent bounds
+  QVERIFY(opt.processInputDescriptor("bandgap ./calc_bandgap.py gap.out 0.0 10.0"));
   QCOMPARE(opt.getDescriptorsNum(), 2);
   QCOMPARE(opt.getDescriptorName(1), QString("bandgap"));
   QCOMPARE(opt.getDescriptorExe(1), QString("./calc_bandgap.py"));
   QCOMPARE(opt.getDescriptorOut(1), QString("gap.out"));
+  QCOMPARE(opt.getDescriptorMin(1), 0.0);
+  QCOMPARE(opt.getDescriptorMax(1), 10.0);
+  // First descriptor's bounds are unaffected by the second's.
+  QCOMPARE(opt.getDescriptorMin(0), 0.0);
+  QCOMPARE(opt.getDescriptorMax(0), 5.0);
 
-  // Malformed descriptors: too few / too many tokens
+  // Negative but valid bounds.
+  QVERIFY(opt.processInputDescriptor("signedval ./calc_signed.sh signed.out -10.0 10.0"));
+  QCOMPARE(opt.getDescriptorsNum(), 3);
+  QCOMPARE(opt.getDescriptorMin(2), -10.0);
+  QCOMPARE(opt.getDescriptorMax(2), 10.0);
+  opt.removeDescriptor(2);
+  QCOMPARE(opt.getDescriptorsNum(), 2);
+
+  // Malformed descriptors: too few tokens (old 3-token syntax is no longer accepted).
   QVERIFY(!opt.processInputDescriptor("only_two_tokens ./script.sh"));
-  QVERIFY(!opt.processInputDescriptor("four tokens in total ./script.sh out.txt"));
+  QVERIFY(!opt.processInputDescriptor("density ./calc_density.sh density.out"));
+  QVERIFY(!opt.processInputDescriptor("density ./calc_density.sh density.out 0.0"));
+
+  // Malformed descriptors: too many tokens.
+  QVERIFY(!opt.processInputDescriptor("six tokens in total ./script.sh out.txt 0.0 1.0"));
+
+  // min/max must be finite numbers: reject non-numeric tokens (covers NaN/Inf text forms).
+  QVERIFY(!opt.processInputDescriptor("desc ./script.sh out1.txt nan 1.0"));
+  QVERIFY(!opt.processInputDescriptor("desc ./script.sh out1.txt 0.0 inf"));
+  QVERIFY(!opt.processInputDescriptor("desc ./script.sh out1.txt -inf 1.0"));
+
+  // min == max must be rejected.
+  QVERIFY(!opt.processInputDescriptor("desc ./script.sh out1.txt 1.0 1.0"));
+
+  // min > max must be rejected.
+  QVERIFY(!opt.processInputDescriptor("desc ./script.sh out1.txt 5.0 1.0"));
+
+  // None of the rejected entries above should have been added.
+  QCOMPARE(opt.getDescriptorsNum(), 2);
 
   // Output filename validation error (e.g. empty or directory separator in output filename)
-  QVERIFY(!opt.processInputDescriptor("desc ./script.sh path/to/out.txt"));
+  QVERIFY(!opt.processInputDescriptor("desc ./script.sh path/to/out.txt 0.0 1.0"));
 
   // Descriptor lines accessor format
   QStringList lines = opt.descriptorLines();
   QCOMPARE(lines.size(), 2);
-  QCOMPARE(lines.at(0), QString("density ./calc_density.sh density.out"));
-  QCOMPARE(lines.at(1), QString("bandgap ./calc_bandgap.py gap.out"));
+  QCOMPARE(lines.at(0), QString("density ./calc_density.sh density.out 0 5"));
+  QCOMPARE(lines.at(1), QString("bandgap ./calc_bandgap.py gap.out 0 10"));
+
+  // Existing reset behavior still works.
+  opt.resetDescriptors();
+  QCOMPARE(opt.getDescriptorsNum(), 0);
+
+  // Re-add for the save/load roundtrip test below.
+  QVERIFY(opt.processInputDescriptor("density ./calc_density.sh density.out 0.0 5.0"));
+  QVERIFY(opt.processInputDescriptor("bandgap ./calc_bandgap.py gap.out 0.0 10.0"));
 
   // Save / load input file roundtrip test
   opt.setInputFormulasString("Ti1O2");
@@ -1154,9 +1195,13 @@ void XtalOptUnitTest::descriptorInputSyntax()
   QCOMPARE(reloaded.getDescriptorName(0), QString("density"));
   QCOMPARE(reloaded.getDescriptorExe(0), QString("./calc_density.sh"));
   QCOMPARE(reloaded.getDescriptorOut(0), QString("density.out"));
+  QCOMPARE(reloaded.getDescriptorMin(0), 0.0);
+  QCOMPARE(reloaded.getDescriptorMax(0), 5.0);
   QCOMPARE(reloaded.getDescriptorName(1), QString("bandgap"));
   QCOMPARE(reloaded.getDescriptorExe(1), QString("./calc_bandgap.py"));
   QCOMPARE(reloaded.getDescriptorOut(1), QString("gap.out"));
+  QCOMPARE(reloaded.getDescriptorMin(1), 0.0);
+  QCOMPARE(reloaded.getDescriptorMax(1), 10.0);
 }
 
 void XtalOptUnitTest::runtimeOptionsApplyRuntimeChangeableKeys()

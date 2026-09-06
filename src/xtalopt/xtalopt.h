@@ -453,6 +453,8 @@ private:
   bool validateUserObjectiveDefinition(ObjType objtyp, const QString& objexe, const QString& objout,
                                        double objwgt, QString* errorMessage = nullptr) const;
   bool validateConstraintDefinition(const QString& exe, const QString& out, QString* errorMessage = nullptr) const;
+  bool validateDescriptorDefinition(const QString& name, const QString& exe, const QString& out,
+                                    double min, double max, QString* errorMessage = nullptr) const;
 
   bool runSearch(const QString& stateFile, bool* onlyMainStateWasLoaded);
   bool checkLocalInputFiles(bool includeSeeds, QString* errorMessage) const;
