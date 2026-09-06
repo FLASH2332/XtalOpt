@@ -202,6 +202,8 @@ const QList<Row>& rows()
 
     //  Objectives
     t << scalar("optimizationType", "basic", false, true, &XtalOpt::optimizationTypeText, &XtalOpt::setOptimizationTypeText);
+    t << scalar("momeGridXBins", "10", false, true, &XtalOpt::getMomeGridXBins, &XtalOpt::setMomeGridXBins);
+    t << scalar("momeGridYBins", "10", false, true, &XtalOpt::getMomeGridYBins, &XtalOpt::setMomeGridYBins);
     t << scalar("tournamentSelection", "true", false, true, &XtalOpt::isTournamentSelection, &XtalOpt::setTournamentSelection);
     t << scalar("restrictedPool", "false", false, true, &XtalOpt::isRestrictedPool, &XtalOpt::setRestrictedPool);
     t << scalar("crowdingDistance", "true", false, true, &XtalOpt::isCrowdingDistance, &XtalOpt::setCrowdingDistance);
@@ -816,6 +818,20 @@ bool validateSettings(XtalOpt& opt, InvalidSettingAction invalidAction, const Sc
     if (!handleInvalidSetting(opt, invalidAction, base,
                                "rdfNumBins is invalid (must be between 100 and 10000).",
                                {"rdfNumBins"}))
+      valid = false;
+  }
+
+  if (opt.getMomeGridXBins() < 1) {
+    if (!handleInvalidSetting(opt, invalidAction, base,
+                               "momeGridXBins is invalid (must be at least 1).",
+                               {"momeGridXBins"}))
+      valid = false;
+  }
+
+  if (opt.getMomeGridYBins() < 1) {
+    if (!handleInvalidSetting(opt, invalidAction, base,
+                               "momeGridYBins is invalid (must be at least 1).",
+                               {"momeGridYBins"}))
       valid = false;
   }
 

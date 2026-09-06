@@ -1906,6 +1906,23 @@ bool XtalOpt::validateDescriptorDefinition(const QString& name, const QString& e
   return true;
 }
 
+bool XtalOpt::validateMomeConfiguration(QString* errorMessage) const
+{
+  if (getOptimizationType() != Search::SearchBase::OT_MOME)
+    return true;
+
+  if (getDescriptorsNum() != 2) {
+    if (errorMessage)
+      *errorMessage = QString("MOME requires exactly 2 configured descriptors "
+                             "(found %1). Configure descriptor[0]/descriptor[1] "
+                             "as the two MOME grid axes.")
+                        .arg(getDescriptorsNum());
+    return false;
+  }
+
+  return true;
+}
+
 bool XtalOpt::processInputObjectives(QString s)
 {
   // This function processes the objective entries from a string
@@ -2185,6 +2202,8 @@ QString XtalOpt::optimizationTypeText() const
       return "basic";
     case Search::SearchBase::OT_Pareto:
       return "pareto";
+    case Search::SearchBase::OT_MOME:
+      return "mome";
   }
   return "unknown";
 }
@@ -2196,6 +2215,8 @@ bool XtalOpt::setOptimizationTypeText(const QString& v)
     setOptimizationType(Search::SearchBase::OT_Basic);
   else if (n == "pareto")
     setOptimizationType(Search::SearchBase::OT_Pareto);
+  else if (n == "mome")
+    setOptimizationType(Search::SearchBase::OT_MOME);
   else
     return false;
   return true;

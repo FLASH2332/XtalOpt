@@ -500,6 +500,7 @@ private slots:
   void descriptorDataStructure();
   void descriptorExecutionAndOutputParsing();
   void queueManagerRunsDescriptorLifecycle();
+  void momeArchiveWiring();
 };
 
 void SearchBaseTest::initTestCase()
@@ -1227,6 +1228,51 @@ void SearchBaseTest::descriptorDataStructure()
 
   m_opt->resetDescriptors();
   QCOMPARE(m_opt->getDescriptorsNum(), 0);
+}
+
+void SearchBaseTest::momeArchiveWiring()
+{
+  QVERIFY(m_opt != nullptr);
+
+  Structure a, b;
+  int x = -1, y = -1;
+
+  // Not MOME: insertion is always a no-op, even right after
+  // resetMomeArchive().
+  m_opt->setOptimizationType(Search::SearchBase::OT_Basic);
+  m_opt->resetMomeArchive();
+  QVERIFY(!m_opt->insertIntoMomeArchive(1.0, 1.0, { 1.0, 1.0 }, &a, x, y));
+
+  // MOME selected, but resetMomeArchive() has not been called since
+  // switching: no archive exists yet, so insertion is still a no-op.
+  m_opt->setOptimizationType(Search::SearchBase::OT_MOME);
+  QVERIFY(!m_opt->insertIntoMomeArchive(1.0, 1.0, { 1.0, 1.0 }, &a, x, y));
+
+  // Configure the two MOME axes' bounds via the existing descriptor list:
+  // MOMEGrid never keeps its own copy of these bounds.
+  m_opt->resetDescriptors();
+  m_opt->addDescriptor("d0", "/bin/true", "d0.out", 0.0, 100.0);
+  m_opt->addDescriptor("d1", "/bin/true", "d1.out", -10.0, 10.0);
+  m_opt->setMomeGridXBins(10);
+  m_opt->setMomeGridYBins(10);
+  m_opt->resetMomeArchive();
+
+  QVERIFY(m_opt->insertIntoMomeArchive(50.0, 0.0, { 1.0, 1.0 }, &a, x, y));
+  QCOMPARE(x, 5);
+  QCOMPARE(y, 5);
+
+  // A dominated candidate landing in the same cell is rejected.
+  QVERIFY(!m_opt->insertIntoMomeArchive(51.0, 1.0, { 2.0, 2.0 }, &b, x, y));
+
+  // resetMomeArchive() clears the archive: the same candidate that just
+  // succeeded above is accepted again in a fresh archive.
+  m_opt->resetMomeArchive();
+  QVERIFY(m_opt->insertIntoMomeArchive(50.0, 0.0, { 1.0, 1.0 }, &a, x, y));
+
+  // Switching away from MOME and rebuilding drops the archive entirely.
+  m_opt->setOptimizationType(Search::SearchBase::OT_Basic);
+  m_opt->resetMomeArchive();
+  QVERIFY(!m_opt->insertIntoMomeArchive(50.0, 0.0, { 1.0, 1.0 }, &a, x, y));
 }
 
 void SearchBaseTest::descriptorExecutionAndOutputParsing()

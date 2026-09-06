@@ -269,6 +269,8 @@ public:
 
   bool verifyCustomIADValues(bool reportError = true) const;
 
+  bool validateMomeConfiguration(QString* errorMessage = nullptr) const;
+
   bool checkComposition(Xtal* xtal, bool isSeed = false);
 
   bool checkLattice(Xtal* xtal);

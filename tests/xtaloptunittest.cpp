@@ -314,6 +314,7 @@ private slots:
   void objectiveSettingsValidation();
   void constraintInputSyntax();
   void descriptorInputSyntax();
+  void momeConfiguration();
   void removeUserObjectivePreservesBuiltinObjective();
   void runtimeOptionsApplyRuntimeChangeableKeys();
   void rebuildDerivedSettingsClearsCachesWhenInputsEmpty();
@@ -1202,6 +1203,85 @@ void XtalOptUnitTest::descriptorInputSyntax()
   QCOMPARE(reloaded.getDescriptorOut(1), QString("gap.out"));
   QCOMPARE(reloaded.getDescriptorMin(1), 0.0);
   QCOMPARE(reloaded.getDescriptorMax(1), 10.0);
+}
+
+void XtalOptUnitTest::momeConfiguration()
+{
+  // optimizationType CLI keyword accepts "mome" alongside "basic"/"pareto".
+  {
+    XtalOpt opt;
+    QCOMPARE(opt.optimizationTypeText(), QString("basic"));
+
+    QVERIFY(opt.setOptimizationTypeText("mome"));
+    QCOMPARE(opt.optimizationTypeText(), QString("mome"));
+    QCOMPARE(opt.getOptimizationType(), Search::SearchBase::OT_MOME);
+  }
+
+  // Grid-bin accessors: default to 10x10 (matching the per-cell Pareto
+  // capacity precedent), and are independently settable.
+  {
+    XtalOpt opt;
+    QCOMPARE(opt.getMomeGridXBins(), 10);
+    QCOMPARE(opt.getMomeGridYBins(), 10);
+
+    opt.setMomeGridXBins(20);
+    opt.setMomeGridYBins(5);
+    QCOMPARE(opt.getMomeGridXBins(), 20);
+    QCOMPARE(opt.getMomeGridYBins(), 5);
+  }
+
+  // Non-MOME optimization types never require any particular descriptor
+  // count.
+  {
+    XtalOpt opt;
+    QVERIFY(opt.validateMomeConfiguration());
+    QVERIFY(opt.processInputDescriptor("density ./calc_density.sh density.out 0.0 5.0"));
+    QVERIFY(opt.validateMomeConfiguration()); // still fine: only 1, but not MOME
+  }
+
+  // MOME requires exactly 2 configured descriptors.
+  {
+    XtalOpt opt;
+    QVERIFY(opt.setOptimizationTypeText("mome"));
+
+    QString err;
+    QVERIFY(!opt.validateMomeConfiguration(&err)); // 0 descriptors
+    QVERIFY(err.contains("2"));
+
+    QVERIFY(opt.processInputDescriptor("density ./calc_density.sh density.out 0.0 5.0"));
+    QVERIFY(!opt.validateMomeConfiguration()); // 1 descriptor: still invalid
+
+    QVERIFY(opt.processInputDescriptor("bandgap ./calc_bandgap.py gap.out 0.0 10.0"));
+    QVERIFY(opt.validateMomeConfiguration()); // exactly 2: valid
+
+    QVERIFY(opt.processInputDescriptor("extra ./calc_extra.sh extra.out 0.0 1.0"));
+    QVERIFY(!opt.validateMomeConfiguration()); // 3 descriptors: invalid again
+  }
+
+  // Save / load input file roundtrip test for the CLI-parsed MOME keywords.
+  {
+    XtalOpt opt;
+    QVERIFY(opt.setOptimizationTypeText("mome"));
+    opt.setMomeGridXBins(7);
+    opt.setMomeGridYBins(13);
+    QVERIFY(opt.processInputDescriptor("density ./calc_density.sh density.out 0.0 5.0"));
+    QVERIFY(opt.processInputDescriptor("bandgap ./calc_bandgap.py gap.out 0.0 10.0"));
+    opt.setInputFormulasString("Ti1O2");
+
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString inputPath = tempPath(tempDir, "xtalopt.in");
+    QVERIFY(opt.saveInputFile(inputPath));
+
+    XtalOpt reloaded;
+    reloaded.setRunMode(XtalOpt::RunModeReadOnly);
+    QVERIFY(reloaded.loadInputFile(inputPath, true, false));
+    QCOMPARE(reloaded.getOptimizationType(), Search::SearchBase::OT_MOME);
+    QCOMPARE(reloaded.getMomeGridXBins(), 7);
+    QCOMPARE(reloaded.getMomeGridYBins(), 13);
+    QCOMPARE(reloaded.getDescriptorsNum(), 2);
+    QVERIFY(reloaded.validateMomeConfiguration());
+  }
 }
 
 void XtalOptUnitTest::runtimeOptionsApplyRuntimeChangeableKeys()

@@ -733,6 +733,10 @@ void SearchBase::deleteTrackedStructures()
     ++m_selectionDataStamp;
   }
   tracker()->deleteAllStructures();
+
+  // Rebuilt fresh (or cleared, if not in OT_MOME) for every session: the
+  // MOME archive is never persisted or carried over between runs.
+  resetMomeArchive();
 }
 
 void SearchBase::performTheExit(int delay)

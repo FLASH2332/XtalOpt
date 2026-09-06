@@ -19,6 +19,7 @@
 #include <common/compatibility/platform_compat.h>
 #include <common/output.h>
 
+#include <search/momegrid.h>
 #include <search/optsteps.h>
 
 #include <QHash>
@@ -33,6 +34,7 @@ class QThread;
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <vector>
 
 namespace Search {
 class Structure;
@@ -191,7 +193,10 @@ public:
     // Scalar generalized fitness function
     OT_Basic = 0,
     // Pareto optimization
-    OT_Pareto
+    OT_Pareto,
+    // Multi-Objective MAP-Elites: a 2-D descriptor grid (see MOMEGrid) with
+    // a per-cell Pareto archive, replacing whole-population Pareto ranking.
+    OT_MOME
   };
 
   //
@@ -615,6 +620,56 @@ public:
   double  getDescriptorMax(int i) const { return m_descriptors.at(i).max; }
   void resetDescriptors() { m_descriptors.clear(); }
   void removeDescriptor(int i) { m_descriptors.removeAt(i); }
+
+  //
+  // MOME archive: 2-D descriptor grid with a per-cell Pareto set (see
+  // MOMEGrid). Active only when getOptimizationType() == OT_MOME, in which
+  // case it uses descriptor[0]/descriptor[1] as its two axes and replaces
+  // whole-population Pareto-front ranking for parent selection.
+  //
+
+  int getMomeGridXBins() const { return m_momeGridXBins; }
+  void setMomeGridXBins(int v) { m_momeGridXBins = v; }
+  int getMomeGridYBins() const { return m_momeGridYBins; }
+  void setMomeGridYBins(int v) { m_momeGridYBins = v; }
+
+  /**
+   * (Re)build an empty MOME archive sized getMomeGridXBins() x
+   * getMomeGridYBins() when getOptimizationType() == OT_MOME, or clear it
+   * (leaving it absent) otherwise. Called once at the start of every
+   * session (see deleteTrackedStructures()), so the archive is never
+   * persisted or carried over between runs.
+   */
+  void resetMomeArchive()
+  {
+    QWriteLocker locker(&m_momeArchiveLock);
+    if (m_optimizationType == OT_MOME)
+      m_momeArchive.reset(new MOMEGrid(m_momeGridXBins, m_momeGridYBins));
+    else
+      m_momeArchive.reset();
+  }
+
+  /**
+   * Map @p structure's descriptor values (@p d0, @p d1) to its MOME cell,
+   * using the bounds already configured on descriptor[0]/descriptor[1]
+   * (see DescriptorInfo), then attempt to insert it there based on
+   * @p objectives.
+   *
+   * @return true if inserted. Returns false without effect when MOME is
+   * not the active optimization type, no archive has been built yet (see
+   * resetMomeArchive()), or MOMEGrid::insertCandidate() itself rejects
+   * the candidate (see its documentation for why).
+   */
+  bool insertIntoMomeArchive(double d0, double d1, const std::vector<double>& objectives,
+                             Structure* structure, int& x, int& y)
+  {
+    QWriteLocker locker(&m_momeArchiveLock);
+    if (!m_momeArchive)
+      return false;
+    return m_momeArchive->insertCandidate(d0, getDescriptorMin(0), getDescriptorMax(0),
+                                          d1, getDescriptorMin(1), getDescriptorMax(1),
+                                          objectives, structure, x, y);
+  }
 
   //
   // QueueManager settings
@@ -1413,6 +1468,12 @@ private:
   bool m_restrictedPool;
   bool m_crowdingDistance;
   bool m_paretoFilterZeroWeights;
+
+  // MOME archive (only built/used when m_optimizationType == OT_MOME).
+  int m_momeGridXBins = 10;
+  int m_momeGridYBins = 10;
+  std::unique_ptr<MOMEGrid> m_momeArchive;
+  mutable QReadWriteLock m_momeArchiveLock;
 
   // Keep the parent-selection data so it is not recalculated for every parent.
   struct ParentSelectionData

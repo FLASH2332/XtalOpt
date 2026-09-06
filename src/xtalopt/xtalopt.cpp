@@ -634,6 +634,9 @@ bool XtalOpt::runSearch(const QString& stateFile, bool* onlyMainStateWasLoaded)
     if (startupError.isEmpty() && getUsingCustomIAD() && !verifyCustomIADValues())
       startupError = tr("Custom IAD mode requires a complete custom IAD table.");
 
+    if (startupError.isEmpty() && !validateMomeConfiguration(&startupError) && startupError.isEmpty())
+      startupError = tr("MOME configuration is invalid.");
+
     if (startupError.isEmpty() &&
         !checkLocalInputFiles(!restoring, &startupError) && startupError.isEmpty())
       startupError = tr("Some local input files could not be read.");
