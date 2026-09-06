@@ -1,0 +1,54 @@
+external/spglib/CMakeFiles/spglib.dir/spglib.c.o: \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spglib.c \
+ /usr/include/stdc-predef.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spglib.h \
+ /usr/lib/gcc/x86_64-linux-gnu/13/include/stddef.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/base.h \
+ /usr/include/stdio.h \
+ /usr/include/x86_64-linux-gnu/bits/libc-header-start.h \
+ /usr/include/features.h /usr/include/features-time64.h \
+ /usr/include/x86_64-linux-gnu/bits/wordsize.h \
+ /usr/include/x86_64-linux-gnu/bits/timesize.h \
+ /usr/include/x86_64-linux-gnu/sys/cdefs.h \
+ /usr/include/x86_64-linux-gnu/bits/long-double.h \
+ /usr/include/x86_64-linux-gnu/gnu/stubs.h \
+ /usr/include/x86_64-linux-gnu/gnu/stubs-64.h \
+ /usr/lib/gcc/x86_64-linux-gnu/13/include/stdarg.h \
+ /usr/include/x86_64-linux-gnu/bits/types.h \
+ /usr/include/x86_64-linux-gnu/bits/typesizes.h \
+ /usr/include/x86_64-linux-gnu/bits/time64.h \
+ /usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h \
+ /usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h \
+ /usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h \
+ /usr/include/x86_64-linux-gnu/bits/types/__FILE.h \
+ /usr/include/x86_64-linux-gnu/bits/types/FILE.h \
+ /usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h \
+ /usr/include/x86_64-linux-gnu/bits/stdio_lim.h \
+ /usr/include/x86_64-linux-gnu/bits/floatn.h \
+ /usr/include/x86_64-linux-gnu/bits/floatn-common.h \
+ /usr/include/x86_64-linux-gnu/bits/stdio2-decl.h \
+ /usr/include/x86_64-linux-gnu/bits/stdio.h \
+ /usr/include/x86_64-linux-gnu/bits/stdio2.h /usr/include/stdlib.h \
+ /usr/include/x86_64-linux-gnu/bits/stdlib-bsearch.h \
+ /usr/include/x86_64-linux-gnu/bits/stdlib-float.h \
+ /usr/include/x86_64-linux-gnu/bits/stdlib.h /usr/include/string.h \
+ /usr/include/x86_64-linux-gnu/bits/string_fortified.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/arithmetic.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/cell.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/mathfunc.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/debug.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/delaunay.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/determination.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/primitive.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/symmetry.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/refinement.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spacegroup.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/kgrid.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/kpoint.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/magnetic_spacegroup.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/msg_database.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/niggli.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/pointgroup.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spg_database.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spin.h \
+ /mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/version.h

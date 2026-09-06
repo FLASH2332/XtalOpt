@@ -1,0 +1,5 @@
+pugixml_autogen/timestamp: \
+	/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/pugixml/CMakeLists.txt \
+	/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/pugixml/pugixml.cpp \
+	/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/pugixml/pugixml.hpp \
+	/usr/bin/cmake
