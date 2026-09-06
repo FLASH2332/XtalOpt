@@ -316,6 +316,7 @@ private slots:
   void descriptorInputSyntax();
   void momeConfiguration();
   void momeArchiveInsertionOnEvaluation();
+  void momeEndToEnd();
   void removeUserObjectivePreservesBuiltinObjective();
   void runtimeOptionsApplyRuntimeChangeableKeys();
   void rebuildDerivedSettingsClearsCachesWhenInputsEmpty();
@@ -1370,6 +1371,143 @@ void XtalOptUnitTest::momeArchiveInsertionOnEvaluation()
 
   // A cell nothing was mapped to has no archive entry.
   QCOMPARE(opt.momeArchiveCellSize(0, 0), 0);
+}
+
+void XtalOptUnitTest::momeEndToEnd()
+{
+  // Step 4G: genuinely end-to-end, with no step shortcut or mocked.
+  //   Structure -> real descriptor-calculation scripts (the same
+  //   startDescriptorCalculations()/finishDescriptorCalculations() code
+  //   QueueManager calls) -> real descriptor mapping + Pareto insertion
+  //   (refreshStructureEvaluationData(), as XtalOpt::updateStructureEvaluationInfo()
+  //   would call it) -> archive updated -> real parent selection reading
+  //   it back out (selectParentStructure()).
+  QTemporaryDir tempDir;
+  QVERIFY(tempDir.isValid());
+
+  XtalOpt opt;
+  opt.setLocWorkDir(tempDir.path());
+  opt.appendOptStep();
+  opt.setQueueInterface(0, "none");
+
+  CellComp comp;
+  comp.setCompositionEntry("Ti", 22, 1);
+  comp.setCompositionEntry("O", 8, 2);
+  opt.compList().append(comp);
+
+  // Descriptor 0 script writes 42.0 to d0.out; descriptor 1 writes 3.0 to
+  // d1.out. With bounds [0,100]/10 bins and [-10,10]/10 bins, this must map
+  // to cell (4, 6): 42/100*10 = 4.2 -> 4; (3+10)/20*10 = 6.5 -> 6.
+  const QString d0Script = Common::localPath(tempDir.path(), "d0.sh");
+  {
+    QFile f(d0Script);
+    QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+    f.write("#!/bin/sh\nprintf '42.0\\n' > d0.out\nexit 0\n");
+    f.close();
+    f.setPermissions(QFile::ExeOwner | QFile::ReadOwner | QFile::WriteOwner);
+  }
+  const QString d1Script = Common::localPath(tempDir.path(), "d1.sh");
+  {
+    QFile f(d1Script);
+    QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+    f.write("#!/bin/sh\nprintf '3.0\\n' > d1.out\nexit 0\n");
+    f.close();
+    f.setPermissions(QFile::ExeOwner | QFile::ReadOwner | QFile::WriteOwner);
+  }
+
+  QVERIFY(opt.setOptimizationTypeText("mome"));
+  QVERIFY(opt.processInputDescriptor(QString("d0 %1 d0.out 0.0 100.0").arg(d0Script)));
+  QVERIFY(opt.processInputDescriptor(QString("d1 %1 d1.out -10.0 10.0").arg(d1Script)));
+  opt.setMomeGridXBins(10);
+  opt.setMomeGridYBins(10);
+  QVERIFY(opt.validateMomeConfiguration());
+  opt.resetMomeArchive();
+
+  auto buildXtal = [&tempDir](uint generation, uint id, int index, int nTi, int nO,
+                              double enthalpy) -> Xtal* {
+    Xtal* xtal = new Xtal(5.0, 5.0, 5.0, 90.0, 90.0, 90.0);
+    for (int i = 0; i < nTi; ++i) {
+      Atoms::Atom& atom = xtal->addAtom();
+      atom.setAtomicNumber(22);
+      atom.setPos(Common::Vector3(0.5 * i, 0.0, 0.0));
+    }
+    for (int i = 0; i < nO; ++i) {
+      Atoms::Atom& atom = xtal->addAtom();
+      atom.setAtomicNumber(8);
+      atom.setPos(Common::Vector3(0.0, 0.5 * (i + 1), 0.0));
+    }
+    xtal->setGeneration(generation);
+    xtal->setIDNumber(id);
+    xtal->setIndex(index);
+    xtal->setStatus(Xtal::Optimized);
+    xtal->setEnthalpy(enthalpy);
+    xtal->setChangedSinceSimChecked(false);
+    xtal->setCurrentOptStep(0);
+    xtal->setLocpath(tempDir.path());
+    xtal->findSpaceGroup();
+    return xtal;
+  };
+
+  // The structure of interest: its descriptors are computed by the real
+  // scripts above, not set directly by the test.
+  Xtal* xtalOfInterest = buildXtal(1, 1, 0, 1, 2, -6.0); // TiO2, on hull
+
+  // A few other structures, far away in descriptor space (set directly:
+  // their own descriptor-calculation correctness isn't this test's point),
+  // so they occupy different cells and cannot interfere with the structure
+  // of interest.
+  Xtal* pureTi = buildXtal(1, 2, 1, 1, 0, -1.0);
+  pureTi->setStrucDescriptorValuesVec({ 10.0, -8.0 });
+  pureTi->setStrucDescriptorState(Structure::Ds_Retain);
+
+  Xtal* pureO = buildXtal(1, 3, 2, 0, 1, -0.5);
+  pureO->setStrucDescriptorValuesVec({ 20.0, -6.0 });
+  pureO->setStrucDescriptorState(Structure::Ds_Retain);
+
+  Xtal* tiO = buildXtal(2, 1, 3, 1, 1, -3.0);
+  tiO->setStrucDescriptorValuesVec({ 70.0, 5.0 });
+  tiO->setStrucDescriptorState(Structure::Ds_Retain);
+
+  // --- Real descriptor calculation ---
+  // Runs the actual scripts via QueueInterface::runACommand(), synchronously,
+  // and reads their real output files: nothing here is shortcut.
+  QVERIFY(opt.startDescriptorCalculations(xtalOfInterest));
+  QVERIFY(opt.finishDescriptorCalculations(xtalOfInterest));
+  QCOMPARE(xtalOfInterest->getStrucDescriptorState(), Structure::Ds_Retain);
+  QCOMPARE(xtalOfInterest->getStrucDescriptorNumber(), 2);
+  QCOMPARE(xtalOfInterest->getStrucDescriptorValues(0), 42.0);
+  QCOMPARE(xtalOfInterest->getStrucDescriptorValues(1), 3.0);
+
+  QList<Structure*> structures;
+  structures << xtalOfInterest << pureTi << pureO << tiO;
+  {
+    const bool wasBlocked = opt.tracker()->blockSignals(true);
+    QWriteLocker trackerLocker(opt.tracker()->rwLock());
+    for (auto* structure : structures)
+      opt.tracker()->append(structure);
+    opt.tracker()->blockSignals(wasBlocked);
+  }
+
+  // --- Real evaluation pass: descriptor mapping + Pareto insertion ---
+  QVERIFY(opt.refreshStructureEvaluationData());
+  QCOMPARE(opt.momeArchiveCellSize(4, 6), 1);
+
+  // --- Real parent selection reading the archive back out ---
+  // Four cells are occupied (the structure of interest's cell, plus the
+  // three others), and selection is uniform over occupied cells, so this
+  // is necessarily probabilistic rather than deterministic. Over enough
+  // draws, the structure of interest — reached only via the real
+  // descriptor-calculation -> mapping -> insertion chain above — must be
+  // selectable, and every draw must return one of the four archived
+  // structures.
+  bool sawXtalOfInterest = false;
+  for (int i = 0; i < 200; ++i) {
+    Structure* picked = opt.selectParentStructure(1);
+    QVERIFY(picked == xtalOfInterest || picked == pureTi || picked == pureO || picked == tiO);
+    if (picked == xtalOfInterest)
+      sawXtalOfInterest = true;
+  }
+  QVERIFY(sawXtalOfInterest);
 }
 
 void XtalOptUnitTest::runtimeOptionsApplyRuntimeChangeableKeys()
