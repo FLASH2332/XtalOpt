@@ -52,6 +52,8 @@
 #include <QReadWriteLock>
 #include <QTimer>
 #include <QtConcurrent>
+#include <QRegularExpression>
+#include <cmath>
 
 #include <randSpg/include/randSpg.h>
 
@@ -3731,6 +3733,142 @@ QList<QString> XtalOpt::getChemicalSystem() const
   return out;
 }
 
+CompositionPattern XtalOpt::parsePattern(QString str) {
+    CompositionPattern pat;
+    QRegularExpression rx("([A-Z][a-z]?|\\([A-Za-z,]+\\))(\\d*)");
+    QRegularExpressionMatchIterator i = rx.globalMatch(str);
+    int matchedLen = 0;
+    while(i.hasNext()) {
+        auto match = i.next();
+        matchedLen += match.capturedLength();
+        CompositionPattern::Group g;
+        QString gStr = match.captured(1);
+        if (gStr.startsWith("(")) {
+            g.elements = gStr.mid(1, gStr.length()-2).split(",");
+        } else {
+            g.elements.append(gStr);
+        }
+        g.count = match.captured(2).isEmpty() ? 1 : match.captured(2).toUInt();
+        pat.groups.append(g);
+    }
+    if (matchedLen != str.length()) {
+        pat.groups.clear(); // Invalid
+    }
+    return pat;
+}
+
+double XtalOpt::comparePatterns(CompositionPattern p1, CompositionPattern p2) {
+    if (!p1.isValid() || !p2.isValid()) return 0;
+    if (p1.groups.size() != p2.groups.size()) return 0;
+    
+    double refRatio = 0;
+    for (int i = 0; i < p1.groups.size(); i++) {
+        if (p1.groups[i].elements != p2.groups[i].elements) return 0;
+        double ratio = (double)p2.groups[i].count / p1.groups[i].count;
+        if (i == 0) refRatio = ratio;
+        else if (fabs(ratio - refRatio) > 1e-6) return 0;
+    }
+    return refRatio;
+}
+
+void XtalOpt::generatePartitions(int n, int k, std::vector<int> current, std::vector<std::vector<int>>& result) {
+    if (k == 1) {
+        if (n >= 1) { // each element must have at least 1 atom
+            current.push_back(n);
+            result.push_back(current);
+        }
+        return;
+    }
+    for (int i = 1; i <= n - k + 1; ++i) {
+        std::vector<int> next_current = current;
+        next_current.push_back(i);
+        generatePartitions(n - i, k - 1, next_current, result);
+    }
+}
+
+QList<CellComp> XtalOpt::generateCompositions(CompositionPattern p, uint minA, uint maxA) {
+    QList<CellComp> out;
+    uint baseAtoms = 0;
+    for (const auto& g : p.groups) baseAtoms += g.count;
+    
+    uint minMult = (minA + baseAtoms - 1) / baseAtoms;
+    if (minMult == 0) minMult = 1;
+    uint maxMult = maxA / baseAtoms;
+    
+    for (uint m = minMult; m <= maxMult; ++m) {
+        QList<std::vector<std::vector<int>>> allGroupParts;
+        bool validMultiplier = true;
+        
+        for (const auto& g : p.groups) {
+            uint targetAtoms = g.count * m;
+            if (targetAtoms < (uint)g.elements.size()) {
+                validMultiplier = false;
+                break; // Not enough atoms to give at least 1 to each element in this group
+            }
+            std::vector<std::vector<int>> parts;
+            generatePartitions(targetAtoms, g.elements.size(), {}, parts);
+            if (parts.empty()) {
+                validMultiplier = false;
+                break;
+            }
+            allGroupParts.append(parts);
+        }
+        
+        if (!validMultiplier) continue;
+        
+        // Cartesian product of parts
+        std::vector<std::vector<int>> indices(p.groups.size(), std::vector<int>(1, 0));
+        QList<std::vector<int>> currentCombo;
+        for (int i = 0; i < p.groups.size(); ++i) currentCombo.append(allGroupParts[i][0]);
+        
+        std::vector<int> iters(p.groups.size(), 0);
+        while (true) {
+            // Process current combo
+            QString formStr;
+            bool boundsOk = true;
+            for (int i = 0; i < p.groups.size(); ++i) {
+                uint groupTotalAtoms = p.groups[i].count * m;
+                for (int j = 0; j < p.groups[i].elements.size(); ++j) {
+                    QString elem = p.groups[i].elements[j];
+                    int count = currentCombo[i][j];
+                    formStr += elem + QString::number(count);
+                    
+                    // Check fractional bounds
+                    if (m_fractionalBounds.contains(elem)) {
+                        double frac = (double)count / groupTotalAtoms;
+                        if (frac < m_fractionalBounds[elem].first || frac > m_fractionalBounds[elem].second) {
+                            boundsOk = false;
+                            break;
+                        }
+                    }
+                }
+                if (!boundsOk) break;
+            }
+            
+            if (boundsOk) {
+                out.append(formulaToComposition(formStr));
+            }
+            
+            // Increment iterator for cartesian product
+            int ptr = p.groups.size() - 1;
+            while (ptr >= 0) {
+                iters[ptr]++;
+                if (iters[ptr] < allGroupParts[ptr].size()) {
+                    currentCombo[ptr] = allGroupParts[ptr][iters[ptr]];
+                    break;
+                } else {
+                    iters[ptr] = 0;
+                    currentCombo[ptr] = allGroupParts[ptr][0];
+                    ptr--;
+                }
+            }
+            if (ptr < 0) break; // done with cartesian product
+        }
+    }
+    
+    return out;
+}
+
 bool XtalOpt::processInputChemicalFormulas(QString s)
 {
   // This function, one of the first things to be called, processes
@@ -3755,7 +3893,21 @@ bool XtalOpt::processInputChemicalFormulas(QString s)
   QList<CellComp> out;
 
   // Input list of formulas.
-  QStringList formulalist = s.split(',');
+  QStringList formulalist;
+  QString currentFormula = "";
+  int parenDepth = 0;
+  for (int i = 0; i < s.length(); ++i) {
+      if (s[i] == '(') parenDepth++;
+      else if (s[i] == ')') parenDepth--;
+      
+      if (s[i] == ',' && parenDepth == 0) {
+          formulalist.append(currentFormula);
+          currentFormula = "";
+      } else {
+          currentFormula += s[i];
+      }
+  }
+  if (!currentFormula.isEmpty()) formulalist.append(currentFormula);
 
   // Process the input formula list and produce composition object.
   // At the end, we will check to see if we have any valid compositions,
@@ -3763,6 +3915,54 @@ bool XtalOpt::processInputChemicalFormulas(QString s)
   for (const auto &tmpform : qAsConst(formulalist)) {
     QString formula = tmpform.simplified();
     formula.replace(" ", "");
+
+    if (formula.contains("(")) {
+      if (!formula.contains("-")) {
+        CompositionPattern pat = parsePattern(formula);
+        if (!pat.isValid()) {
+            qDebug() << "Error: invalid pattern '" << formula << "'";
+            return false;
+        }
+        QList<CellComp> patComps = generateCompositions(pat, this->minAtoms, this->maxAtoms);
+        if (patComps.isEmpty()) {
+            qDebug() << "Error: no valid compositions generated for pattern '" << formula << "'";
+            return false;
+        }
+        out.append(patComps);
+        continue;
+      } else {
+        QStringList expcomp = formula.split("-");
+        if (expcomp.size() != 2) {
+          qDebug() << "Error: incorrect chemical formula entry '" << formula << "'";
+          return false;
+        }
+        CompositionPattern pat1 = parsePattern(expcomp[0]);
+        CompositionPattern pat2 = parsePattern(expcomp[1]);
+        if (!pat1.isValid() || !pat2.isValid()) {
+            qDebug() << "Error: invalid pattern in range '" << formula << "'";
+            return false;
+        }
+        double ratio = comparePatterns(pat1, pat2);
+        if (ratio == 0 || ratio != std::floor(ratio) || ratio < 1) {
+            qDebug() << "Error: patterns do not match or ratio is invalid in '" << formula << "'";
+            return false;
+        }
+        
+        uint baseAtoms = 0;
+        for (const auto& g : pat1.groups) baseAtoms += g.count;
+        uint maxA = static_cast<uint>(ratio) * baseAtoms;
+        uint minA = baseAtoms; 
+
+        QList<CellComp> patComps = generateCompositions(pat1, minA, maxA);
+        if (patComps.isEmpty()) {
+            qDebug() << "Error: no valid compositions generated for pattern range '" << formula << "'";
+            return false;
+        }
+        out.append(patComps);
+        continue;
+      }
+    }
+
     // First, is this a "single" formula entry?
     if (!formula.contains("-")) {
       CellComp tmpcomp = formulaToComposition(formula);
@@ -4357,7 +4557,8 @@ QList<uint> XtalOpt::getListOfAtomsComp(CellComp incomp)
 
 std::vector<uint> XtalOpt::getStdVecOfAtomsComp(CellComp incomp)
 {
-  return getListOfAtomsComp(incomp).toVector().toStdVector();
+  auto list = getListOfAtomsComp(incomp);
+  return std::vector<uint>(list.begin(), list.end());
 }
 
 CellComp XtalOpt::pickRandomCompositionFromPossibleOnes()
