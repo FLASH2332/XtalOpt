@@ -1,0 +1,29 @@
+opti conp
+switch_minimiser bfgs gnorm 0.5
+cell
+  %a% %b% %c% %alphaDeg% %betaDeg% %gammaDeg%
+frac
+%coordsFrac%
+
+# NOTE: You MUST update the potential parameters below for battery materials!
+# These are dummy Buckingham potentials just to allow the template to run.
+species
+Li 1.0
+Mn 4.0
+Ni 2.0
+Co 3.0
+O -2.0
+
+buck
+Li O  1000.0  0.300  10.0  15
+Mn O  1500.0  0.300  15.0  15
+Ni O  1200.0  0.300  12.0  15
+Co O  1300.0  0.300  13.0  15
+O  O  2000.0  0.300  20.0  15
+
+lennard 12 6
+Li Li  1.0  0.0  15
+Mn Mn  1.0  0.0  15
+Ni Ni  1.0  0.0  15
+Co Co  1.0  0.0  15
+O  O   1.0  0.0  15

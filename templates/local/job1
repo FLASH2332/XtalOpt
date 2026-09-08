@@ -1,0 +1,4 @@
+#!/bin/bash
+# Local job execution script for XtalOpt
+
+gulp < job.gin > job.got
