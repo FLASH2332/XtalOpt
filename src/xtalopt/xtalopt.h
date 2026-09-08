@@ -100,6 +100,16 @@ struct RefEnergy
   double   energy;
 };
 
+// Represents a pattern group for formula like Li1(Mn,Ni,Co)1O2
+struct CompositionPattern {
+    struct Group {
+        QStringList elements;
+        uint count;
+    };
+    QList<Group> groups;
+    bool isValid() const { return !groups.isEmpty(); }
+};
+
 // Minimum radii of elements: an instance of this class is created once the
 //   user's input formula are processed, by assigning the values for all
 //   elements in the search space.
@@ -316,6 +326,11 @@ public:
   // Compare two composition object if they are equivalent/supercell or not
   double compareCompositions(CellComp comp1, CellComp comp2);
 
+  double comparePatterns(CompositionPattern p1, CompositionPattern p2);
+  QList<CellComp> generateCompositions(CompositionPattern p, uint minA, uint maxA);
+  void generatePartitions(int n, int k, std::vector<int> current, std::vector<std::vector<int>>& result);
+  CompositionPattern parsePattern(QString str);
+
   // Get the estimated min/max volume limits for a composition
   void getCompositionVolumeLimits(CellComp incomp, double& vol_min, double& vol_max);
 
@@ -350,6 +365,9 @@ public:
   QString input_formulas_string;  // Input string for chemical formulas
   QString input_ene_refs_string;  // Input string for reference energies
   QString input_ele_volm_string;  // Input string for elemental volumes
+
+  // Fractional bounds for variable formula elements (e.g. Mn 0.1 0.4)
+  QMap<QString, QPair<double, double>> m_fractionalBounds;
 
   QList<CellComp> compList;    // Cell compositions
   QList<RefEnergy> refEnergies;// Reference energies
