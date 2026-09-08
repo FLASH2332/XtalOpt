@@ -12,4 +12,4 @@ make -j$(nproc)
 
 cd ..
 
-.build/bin/xtalopt --cli
+./build/bin/xtalopt --cli

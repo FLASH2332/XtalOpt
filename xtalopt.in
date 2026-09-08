@@ -2,13 +2,18 @@
 
 # Initialization settings
   # Composition settings
-      chemicalFormulas = Ti2O4 - Ti4O8
+      #chemicalFormulas = Ti2O4 - Ti4O8
 
   # Reference energies (not necessary for fixed-composition search)
     #referenceEnergies = Ti3 -14.18719749, O4 -10.19855357
 
+  chemicalFormulas = Li1(Mn,Ni,Co)1O2
+  fractionalBounds = Mn 0.1 0.6, Ni 0.1 0.6, Co 0.1 0.6
+  minAtoms = 4
+  maxAtoms = 12
+
   # Search type
-    #vcSearch = false
+    vcSearch = true
 
   # System size limit
     #minAtoms = 1
