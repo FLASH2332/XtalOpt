@@ -145,6 +145,7 @@ static const QStringList keywords = { "minVolumeScale",
                                       "kpointsTemplates",
                                       "mtpCellTemplates",
                                       "mtpRelaxTemplates",
+                                      "fractionalBounds",
                                       "mtpPotTemplates" };
 
 static const QStringList requiredKeywords = { "chemicalFormulas",
@@ -371,6 +372,32 @@ bool XtalOptCLIOptions::processOptions(const QHash<QString, QString>& options,
   xtalopt.scaleFactor = options.value("radiiScalingFactor", "0.5").toFloat();
   xtalopt.minRadius = options.value("minRadius", "0.25").toFloat();
 
+  // Read minimum/maximum number of atoms first so it can be used for pattern expansion.
+  xtalopt.minAtoms = options.value("minAtoms", "1").toInt();
+  xtalopt.maxAtoms = options.value("maxAtoms", "20").toInt();
+  if (xtalopt.minAtoms < 1) {
+    qDebug() << "\nError: min atom limit should be 1 or larger";
+    return false;
+  } else if (xtalopt.minAtoms > xtalopt.maxAtoms) {
+    qDebug() << "\nError: min and max atom limits are unacceptable "
+             << xtalopt.minAtoms << xtalopt.maxAtoms;
+    return false;
+  }
+
+  // Process fractional bounds
+  QString fracBoundsStr = options.value("fractionalBounds", "");
+  if (!fracBoundsStr.isEmpty()) {
+    QStringList parts = fracBoundsStr.split(",", QString::SkipEmptyParts);
+    for (const QString& part : parts) {
+      QStringList tokens = part.simplified().split(" ", QString::SkipEmptyParts);
+      if (tokens.size() == 3) {
+        xtalopt.m_fractionalBounds[tokens[0]] = qMakePair(tokens[1].toDouble(), tokens[2].toDouble());
+      } else {
+        qDebug() << "Warning: invalid fractionalBounds entry:" << part;
+      }
+    }
+  }
+
   // Now process the initial chemical formulae list.
   xtalopt.input_formulas_string = options["chemicalFormulas"];
   if (!xtalopt.processInputChemicalFormulas(xtalopt.input_formulas_string)) {
@@ -402,18 +429,8 @@ bool XtalOptCLIOptions::processOptions(const QHash<QString, QString>& options,
   // Should we save hull snapshots?
   xtalopt.m_saveHullSnapshots = toBool(options.value("saveHullSnapshots", "false"));
 
-  // Read minimum/maximum number of atoms.
-  xtalopt.minAtoms = options.value("minAtoms", "1").toInt();
-  xtalopt.maxAtoms = options.value("maxAtoms", "20").toInt();
   // Minimum and maximum atom count limit should be reasonable!
-  if (xtalopt.minAtoms < 1) {
-    qDebug() << "\nError: min atom limit should be 1 or larger";
-    return false;
-  } else if (xtalopt.minAtoms > xtalopt.maxAtoms) {
-    qDebug() << "\nError: min and max atom limits are unacceptable "
-             << xtalopt.minAtoms << xtalopt.maxAtoms;
-    return false;
-  }
+  // (Moved up)
 
   // Find the minimum and maximum of total atom count in input formulas.
   int maximum_atoms_in_compositions = 0;
