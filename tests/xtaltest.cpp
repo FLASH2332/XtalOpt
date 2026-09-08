@@ -1,8 +1,7 @@
 /**********************************************************************
-  XtalTest - Unit testing for Xtal class in XtalOpt
+  XtalTest -- Unit testing for XtalOpt::Xtal class
 
   Copyright (C) 2010 David C. Lonie
-  Copyright (C) 2026 Samad Hajinazar
 
   This source code is released under the New BSD License, (the "License").
 
@@ -11,28 +10,26 @@
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   See the License for the specific language governing permissions and
   limitations under the License.
- ***********************************************************************/
+ **********************************************************************/
 
 #include <xtalopt/structures/xtal.h>
-#include <xtalopt/xtalopt.h>
 
-#include <search/tracker.h>
+#include <xtalopt/debug.h>
 
-#include <common/constants.h>
-#include <common/fileutils.h>
-#include <common/output.h>
-#include <atoms/eleminfo.h>
-#include <atoms/formats/vaspformat.h>
-#include <common/compatibility/platform_compat.h>
-#include <common/random.h>
+#include <globalsearch/eleminfo.h>
+#include <globalsearch/formats/cmlformat.h>
+#include <globalsearch/formats/formats.h>
+#include <globalsearch/formats/poscarformat.h>
+#include <globalsearch/macros.h>
+#include <globalsearch/random.h>
 
+#include <Eigen/Geometry>
+
+#include <QDebug>
 #include <QString>
-#include <QDir>
-#include <QTemporaryDir>
 #include <QtTest>
 
-#include <algorithm>
-#include <random>
+#include <fstream>
 
 #define ASSIGN_PARAMS(a, b, c, alpha, beta, gamma)                             \
   if (!xtal)                                                                   \
@@ -49,43 +46,19 @@
   QVERIFY(ROUGH_EQ(beta_, xtal->getBeta()));                                   \
   QVERIFY(ROUGH_EQ(gamma_, xtal->getGamma()));
 
+#define DEBUG_ATOM(t, c)                                                       \
+  printf("%2d %9.5f %9.5f %9.5f\n", t, (c).x(), (c).y(), (c).z())
+#define DEBUG_VECTOR(v)                                                        \
+  printf("| %9.5f %9.5f %9.5f |\n", (v).x(), (v).y(), (v).z())
+#define DEBUG_MATRIX(m)                                                        \
+  printf("| %9.5f %9.5f %9.5f |\n"                                             \
+         "| %9.5f %9.5f %9.5f |\n"                                             \
+         "| %9.5f %9.5f %9.5f |\n",                                            \
+         (m)(0, 0), (m)(0, 1), (m)(0, 2), (m)(1, 0), (m)(1, 1), (m)(1, 2),     \
+         (m)(2, 0), (m)(2, 1), (m)(2, 2))
+
 using namespace XtalOpt;
-using namespace Search;
-
-namespace {
-
-Common::Vector3 randomUnitVector()
-{
-  Common::Vector3 axis;
-  do {
-    axis = Common::Vector3(Common::getRandDouble(-1.0, 1.0), Common::getRandDouble(-1.0, 1.0),
-                   Common::getRandDouble(-1.0, 1.0));
-  } while (axis.squaredNorm() < 1.0e-12);
-  axis.normalize();
-  return axis;
-}
-
-Common::Matrix3 rotationFromAxisAngle(const Common::Vector3& axis, double angleDegrees)
-{
-  const double angleRadians = angleDegrees * DEG2RAD;
-  const double c = std::cos(angleRadians);
-  const double s = std::sin(angleRadians);
-  const double t = 1.0 - c;
-
-  Common::Matrix3 rotation;
-  rotation << t * axis.x() * axis.x() + c,
-              t * axis.x() * axis.y() - s * axis.z(),
-              t * axis.x() * axis.z() + s * axis.y(),
-              t * axis.x() * axis.y() + s * axis.z(),
-              t * axis.y() * axis.y() + c,
-              t * axis.y() * axis.z() - s * axis.x(),
-              t * axis.x() * axis.z() - s * axis.y(),
-              t * axis.y() * axis.z() + s * axis.x(),
-              t * axis.z() * axis.z() + c;
-  return rotation;
-}
-
-} // namespace
+using namespace GlobalSearch;
 
 class XtalTest : public QObject
 {
@@ -115,16 +88,16 @@ private slots:
 
   // tests
   void rotateToStdOrientationTest();
+  void compareCoordinatesTest_simple();
+  void compareCoordinatesTest_shifted();
   void compareCoordinatesTest_huge();
+  void equalityOperatorTest_simple();
+  void equalityOperatorTest_shifted();
   void equalityOperatorTest_huge();
   void niggliReduceTest();
   void fixAnglesTest();
   void getRandomRepresentationTest();
-  void checkInteratomicDistancesTest();
-  void moveAtomRandomlyChecksDistancesAgainstEachAtom();
-  void writeReadSettingsPreservesCompositionValidity();
-  void resultsEntryUsesComputedSpaceGroup();
-  void hullFormattingTest();
+  void equalityVsFingerprintTest();
 };
 
 void XtalTest::initTestCase()
@@ -146,7 +119,7 @@ void XtalTest::cleanup()
 void XtalTest::rotateToStdOrientationTest()
 {
   Xtal xtal;
-  Common::Vector3 v1, v2, v3;
+  Vector3 v1, v2, v3;
   double origVolume, newVolume;
   double origA, newA;
   double origB, newB;
@@ -181,9 +154,19 @@ void XtalTest::rotateToStdOrientationTest()
   QCOMPARE(newGamma, origGamma)
 #define ROTTEST_ROT_AND_TEST                                                   \
   ROTTEST_GET_ORIG_INFO;                                                       \
-  QVERIFY(xtal.rotateCellAndCoordsToStandardOrientation());                    \
+  QVERIFY(xtal.rotateCellToStandardOrientation());                             \
   ROTTEST_GET_NEW_INFO;                                                        \
+  /*ROTTEST_DEBUG_INFO;*/                                                      \
   ROTTEST_VERIFY_INFO
+#define ROTTEST_DEBUG_INFO                                                     \
+  qDebug() << newVolume << origVolume << endl                                  \
+           << newA << origA << endl                                            \
+           << newB << origB << endl                                            \
+           << newC << origC << endl                                            \
+           << newAlpha << origAlpha << endl                                    \
+           << newBeta << origBeta << endl                                      \
+           << newGamma << origGamma;                                           \
+  std::cout << xtal.OBUnitCell()->GetCellMatrix()
 
   // test cells that are already in std orientation:
   xtal.setCellInfo(3, 3, 3, 90, 90, 90);
@@ -199,17 +182,39 @@ void XtalTest::rotateToStdOrientationTest()
   ROTTEST_ROT_AND_TEST;
 
   // These cell will need rotation
-  v1 = Common::Vector3(1, -4, 3);
-  v2 = Common::Vector3(0, 5, -8);
-  v3 = Common::Vector3(0, 0, -3);
+  v1 = Vector3(1, -4, 3);
+  v2 = Vector3(0, 5, -8);
+  v3 = Vector3(0, 0, -3);
   xtal.setCellInfo(v1, v2, v3);
   ROTTEST_ROT_AND_TEST;
 
-  v1 = Common::Vector3(1, 3, 6);
-  v2 = Common::Vector3(-4, 5, 1);
-  v3 = Common::Vector3(3, -8, -3);
+  v1 = Vector3(1, 3, 6);
+  v2 = Vector3(-4, 5, 1);
+  v3 = Vector3(3, -8, -3);
   xtal.setCellInfo(v1, v2, v3);
   ROTTEST_ROT_AND_TEST;
+}
+
+void XtalTest::compareCoordinatesTest_simple()
+{
+  Xtal xtal1, xtal2;
+
+  xtal1 = Xtal(2, 2, 2, 90, 90, 90);
+  Atom& atm = xtal1.addAtom();
+  atm.setPos(Vector3(0, 0, 0));
+  xtal2 = xtal1;
+  QVERIFY(xtal1.compareCoordinates(xtal2));
+}
+
+void XtalTest::compareCoordinatesTest_shifted()
+{
+  Xtal xtal1, xtal2;
+
+  xtal1 = Xtal(2, 2, 2, 90, 90, 90);
+  Atom& atm = xtal1.addAtom();
+  atm.setPos(Vector3(1, 1, 1));
+  xtal2 = xtal1;
+  QVERIFY(xtal1.compareCoordinates(xtal2));
 }
 
 void XtalTest::compareCoordinatesTest_huge()
@@ -221,8 +226,8 @@ void XtalTest::compareCoordinatesTest_huge()
   for (double x = 0.0; x < .999; x += 0.333333333333) {
     for (double y = 0.0; y < .999; y += 0.333333333333) {
       for (double z = 0.0; z < .999; z += 0.333333333333) {
-        Atoms::Atom& atm = xtal1.addAtom();
-        atm.setPos(xtal1.fracToCart(Common::Vector3(x, y, z)));
+        Atom& atm = xtal1.addAtom();
+        atm.setPos(xtal1.fracToCart(Vector3(x, y, z)));
         atm.setAtomicNumber(static_cast<int>(10 * (x + y + z)) % 3);
       }
     }
@@ -230,11 +235,39 @@ void XtalTest::compareCoordinatesTest_huge()
 
   // Test for equality
   xtal2 = xtal1;
-  QVERIFY(xtal1.compareXtalComp(xtal2));
+  QVERIFY(xtal1.compareCoordinates(xtal2));
 
   // Delete an atom and ensure that the comparison fails
   xtal2.removeAtom(xtal2.atom(0));
-  QVERIFY(!xtal1.compareXtalComp(xtal2));
+  QVERIFY(!xtal1.compareCoordinates(xtal2));
+}
+
+void XtalTest::equalityOperatorTest_simple()
+{
+  Xtal xtal1, xtal2;
+
+  xtal1 = Xtal(2, 2, 2, 90, 90, 90);
+  Atom& atm = xtal1.addAtom();
+  atm.setPos(Vector3(0, 0, 0));
+  xtal2 = xtal1;
+  QVERIFY(xtal1 == xtal2);
+  // Change cell size and retest
+  xtal2.setCellInfo(4, 4, 4, 90, 90, 90);
+  QVERIFY(xtal1 != xtal2);
+}
+
+void XtalTest::equalityOperatorTest_shifted()
+{
+  Xtal xtal1, xtal2;
+
+  xtal1 = Xtal(2, 2, 2, 90, 90, 90);
+  Atom& atm = xtal1.addAtom();
+  atm.setPos(Vector3(1, 1, 1));
+  xtal2 = xtal1;
+  QVERIFY(xtal1 == xtal2);
+  // Change cell size and retest
+  xtal2.setCellInfo(4, 4, 4, 90, 90, 90);
+  QVERIFY(xtal1 != xtal2);
 }
 
 void XtalTest::equalityOperatorTest_huge()
@@ -246,8 +279,8 @@ void XtalTest::equalityOperatorTest_huge()
   for (double x = 0.0; x < 0.999; x += 0.333333333333) {
     for (double y = 0.0; y < 0.999; y += 0.333333333333) {
       for (double z = 0.0; z < 0.999; z += 0.333333333333) {
-        Atoms::Atom& atm = xtal1.addAtom();
-        atm.setPos(xtal1.fracToCart(Common::Vector3(x, y, z)));
+        Atom& atm = xtal1.addAtom();
+        atm.setPos(xtal1.fracToCart(Vector3(x, y, z)));
         atm.setAtomicNumber(static_cast<int>(10 * (x + y + z)) % 3);
       }
     }
@@ -270,7 +303,7 @@ void XtalTest::equalityOperatorTest_huge()
 void XtalTest::niggliReduceTest()
 {
   // Seed the random number generator to ensure similar results each run
-  Common::seedMt19937Generator(0);
+  seedMt19937Generator(0);
   srand(0);
 
   Xtal* xtal = 0;
@@ -299,24 +332,20 @@ void XtalTest::niggliReduceTest()
   const double maxLength = 30.0;
   const double minAngle = 45.0;
   const double maxAngle = 135.0;
-
-  // Test randomly generated cells.
-  for (unsigned int i = 0; i < 200; i++) {
-    const double a = Common::getRandDouble() * (maxLength - minLength) + minLength;
-    const double b = Common::getRandDouble() * (maxLength - minLength) + minLength;
-    const double c = Common::getRandDouble() * (maxLength - minLength) + minLength;
-    const double alpha = Common::getRandDouble() * (maxAngle - minAngle) + minAngle;
-    const double beta = Common::getRandDouble() * (maxAngle - minAngle) + minAngle;
-    const double gamma = Common::getRandDouble() * (maxAngle - minAngle) + minAngle;
-
+  for (unsigned int i = 0; i < 1000; i++) {
+    const double a = getRandDouble() * (maxLength - minLength) + minLength;
+    const double b = getRandDouble() * (maxLength - minLength) + minLength;
+    const double c = getRandDouble() * (maxLength - minLength) + minLength;
+    const double alpha = getRandDouble() * (maxAngle - minAngle) + minAngle;
+    const double beta = getRandDouble() * (maxAngle - minAngle) + minAngle;
+    const double gamma = getRandDouble() * (maxAngle - minAngle) + minAngle;
     // is the cell valid?
-    Atoms::UnitCell tmp(a, b, c, alpha, beta, gamma);
+    UnitCell tmp(alpha, beta, gamma, a, b, c);
     if (tmp.cellMatrix().determinant() <= 0 ||
         GS_IS_NAN_OR_INF(tmp.cellMatrix().determinant())) {
       i--;
       continue;
     }
-
     ASSIGN_PARAMS(a, b, c, alpha, beta, gamma);
     QVERIFY2(xtal->niggliReduce(),
              QString("Unable to reduce cell. Params: %1 %2 %3 %4 %5 %6")
@@ -361,27 +390,25 @@ struct CellParam
 void XtalTest::fixAnglesTest()
 {
   // Seed the random number generator to ensure similar results each run
-  Common::seedMt19937Generator(0);
+  seedMt19937Generator(0);
 
   Xtal xtal;
   const double minLength = 10.0;
   const double maxLength = 30.0;
   const double minAngle = 45.0;
   const double maxAngle = 135.0;
-
   QList<CellParam> badParams;
-
-  // Test random rotated cells.
-  for (unsigned int iter = 0; iter < 30; iter++) {
-    const double a = Common::getRandDouble() * (maxLength - minLength) + minLength;
-    const double b = Common::getRandDouble() * (maxLength - minLength) + minLength;
-    const double c = Common::getRandDouble() * (maxLength - minLength) + minLength;
-    const double alpha = Common::getRandDouble() * (maxAngle - minAngle) + minAngle;
-    const double beta = Common::getRandDouble() * (maxAngle - minAngle) + minAngle;
-    const double gamma = Common::getRandDouble() * (maxAngle - minAngle) + minAngle;
-
+  Vector3 axis;
+  Eigen::Matrix3d mat;
+  for (unsigned int iter = 0; iter < 100; iter++) {
+    const double a = getRandDouble() * (maxLength - minLength) + minLength;
+    const double b = getRandDouble() * (maxLength - minLength) + minLength;
+    const double c = getRandDouble() * (maxLength - minLength) + minLength;
+    const double alpha = getRandDouble() * (maxAngle - minAngle) + minAngle;
+    const double beta = getRandDouble() * (maxAngle - minAngle) + minAngle;
+    const double gamma = getRandDouble() * (maxAngle - minAngle) + minAngle;
     // is the cell valid?
-    Atoms::UnitCell tmp(a, b, c, alpha, beta, gamma);
+    UnitCell tmp(alpha, beta, gamma, a, b, c);
     if (tmp.cellMatrix().determinant() <= 0 ||
         GS_IS_NAN_OR_INF(tmp.cellMatrix().determinant())) {
       --iter;
@@ -389,21 +416,20 @@ void XtalTest::fixAnglesTest()
     }
 
     // Create random rotation matrix
-    const Common::Matrix3 rotation = rotationFromAxisAngle(randomUnitVector(),
-                                                   Common::getRandDouble() * 360.0);
+    Eigen::AngleAxis<double> t(getRandDouble() * 360.0, axis.setRandom());
 
     // Rotate cell
-    tmp.setCellMatrix(rotation * tmp.cellMatrix());
+    tmp.setCellMatrix(t * tmp.cellMatrix());
 
     // Update cell
     xtal.setUnitCell(tmp);
 
     // Add some atoms
-    for (unsigned int i = 0; i < Common::getRandUInt() % 100; i++) {
-      Atoms::Atom& atm = xtal.addAtom();
+    for (unsigned int i = 0; i < getRandUInt() % 100; i++) {
+      Atom& atm = xtal.addAtom();
       atm.setPos(xtal.fracToCart(
-        Common::Vector3(Common::getRandDouble(), Common::getRandDouble(), Common::getRandDouble())));
-      atm.setAtomicNumber(Common::getRandUInt() % 5);
+        Vector3(getRandDouble(), getRandDouble(), getRandDouble())));
+      atm.setAtomicNumber(getRandUInt() % 5);
     }
     if (!xtal.fixAngles()) {
       badParams.push_back(CellParam(a, b, c, alpha, beta, gamma));
@@ -414,23 +440,12 @@ void XtalTest::fixAnglesTest()
   }
 
   if (badParams.size() != 0) {
-    Common::message(QString("%1 %2 %3 %4 %5 %6 %7")
-                     .arg("num", 5)
-                     .arg("a", 10)
-                     .arg("b", 10)
-                     .arg("c", 10)
-                     .arg("alpha", 10)
-                     .arg("beta", 10)
-                     .arg("gamma", 10));
+    printf("%5s %10s %10s %10s %10s %10s %10s\n", "num", "a", "b", "c", "alpha",
+           "beta", "gamma");
     for (int i = 0; i < badParams.size(); i++) {
-      Common::message(QString("%1 %2 %3 %4 %5 %6 %7")
-                       .arg(i + 1, 5)
-                       .arg(badParams.at(i).a, 10, 'f', 6)
-                       .arg(badParams.at(i).b, 10, 'f', 6)
-                       .arg(badParams.at(i).c, 10, 'f', 6)
-                       .arg(badParams.at(i).alpha, 10, 'f', 6)
-                       .arg(badParams.at(i).beta, 10, 'f', 6)
-                       .arg(badParams.at(i).gamma, 10, 'f', 6));
+      printf("%5d %10f %10f %10f %10f %10f %10f\n", i + 1, badParams.at(i).a,
+             badParams.at(i).b, badParams.at(i).c, badParams.at(i).alpha,
+             badParams.at(i).beta, badParams.at(i).gamma);
     }
   }
   QVERIFY2(badParams.size() == 0, "The above cells did not reduce cleanly.");
@@ -439,12 +454,10 @@ void XtalTest::fixAnglesTest()
 void XtalTest::getRandomRepresentationTest()
 {
   // Seed the random number generator to ensure similar results between tests
-  Common::seedMt19937Generator(0);
-  std::mt19937 shuffleGenerator(0);
+  seedMt19937Generator(0);
 
   // Parameters:
-  // Keep this test quick.
-  const int iterations = 60;
+  const int iterations = 250;
   const int numAtoms = 50;
 
   Xtal* nxtal = 0;
@@ -468,17 +481,15 @@ void XtalTest::getRandomRepresentationTest()
     //    P(3) = (2/3)(2/3)              = 4/9
     //
     std::vector<double> lengths(3);
-    lengths[0] = Common::getRandDouble();
-
-    if (Common::getRandDouble() < 0.3333333)
+    lengths[0] = getRandDouble();
+    if (getRandDouble() < 0.3333333)
       lengths[1] = lengths[0];
     else
-      lengths[1] = Common::getRandDouble();
-    if (Common::getRandDouble() < 0.3333333)
+      lengths[1] = getRandDouble();
+    if (getRandDouble() < 0.3333333)
       lengths[2] = lengths[1];
     else
-      lengths[2] = Common::getRandDouble();
-
+      lengths[2] = getRandDouble();
     //
     // Adjust each length to be between 5->25 angstrom
     //
@@ -488,7 +499,7 @@ void XtalTest::getRandomRepresentationTest()
     //
     // Randomize the order
     //
-    std::shuffle(lengths.begin(), lengths.end(), shuffleGenerator);
+    std::random_shuffle(lengths.begin(), lengths.end());
     //
     //  - Now for the angles. Similarly, each may be the same as the
     //    previous, but there is also a 1/3 chance that the angle will
@@ -496,23 +507,21 @@ void XtalTest::getRandomRepresentationTest()
     //
     double rand;
     std::vector<double> angles(3);
-    angles[0] = Common::getRandDouble();
-
-    rand = Common::getRandDouble();
+    angles[0] = getRandDouble();
+    rand = getRandDouble();
     if (rand < 0.33333333)
       angles[1] = angles[0];
     else if (rand < 0.6666666)
       angles[1] = 0.5; // will convert to 90
     else
-      angles[1] = Common::getRandDouble(); // degrees later
-
-    rand = Common::getRandDouble();
+      angles[1] = getRandDouble(); // degrees later
+    rand = getRandDouble();
     if (rand < 0.33333333)
       angles[2] = angles[1];
     else if (rand < 0.6666666)
       angles[2] = 0.5; // will convert to 90
     else
-      angles[2] = Common::getRandDouble(); // degrees later
+      angles[2] = getRandDouble(); // degrees later
     //
     // Adjust each angle to lie between 60->120 degrees
     //
@@ -522,7 +531,7 @@ void XtalTest::getRandomRepresentationTest()
     //
     // Randomize the order
     //
-    std::shuffle(angles.begin(), angles.end(), shuffleGenerator);
+    std::random_shuffle(angles.begin(), angles.end());
     //
     // Construct xtal
     //
@@ -535,9 +544,8 @@ void XtalTest::getRandomRepresentationTest()
     //
     unsigned int failedAtomAdds = 0;
     unsigned int failedAtomAddsMax = 10;
-
     for (int j = 0; j < numAtoms; ++j) {
-      unsigned short atomicNum = Common::getRandUInt() % 5 + 1;
+      unsigned short atomicNum = getRandUInt() % 5 + 1;
       if (!xtal.addAtomRandomly(atomicNum, 0.5)) {
         --j;
         ++failedAtomAdds;
@@ -547,7 +555,6 @@ void XtalTest::getRandomRepresentationTest()
         continue;
       }
     }
-
     if (failedAtomAdds > failedAtomAddsMax) {
       --i;
       continue;
@@ -562,17 +569,17 @@ void XtalTest::getRandomRepresentationTest()
     success_msecs += start.msecsTo(end);
 
     if (!match) {
-      Common::message(QString("Failure on comparison %1 (false negative)").arg(i+1));
+      qDebug() << "Failure on comparison" << i + 1 << "(false negative)";
     }
     QVERIFY(match);
 
     // Signficantly displace an atom of nxtal and ensure that the
     // comparison fails. Displacement is ~1-4 angstrom
     Q_ASSERT(nxtal->numAtoms() > 3);
-    Common::Vector3 displacement;
-    displacement.x() = Common::getRandDouble() + 1.0;
-    displacement.y() = Common::getRandDouble() + 1.0;
-    displacement.z() = Common::getRandDouble() + 1.0;
+    Vector3 displacement;
+    displacement.x() = getRandDouble() + 1.0;
+    displacement.y() = getRandDouble() + 1.0;
+    displacement.z() = getRandDouble() + 1.0;
     nxtal->atom(0).setPos(nxtal->atom(0).pos() + displacement);
 
     start = QTime::currentTime();
@@ -583,198 +590,213 @@ void XtalTest::getRandomRepresentationTest()
     if (match) {
       // Move atom back
       nxtal->atom(0).setPos(nxtal->atom(0).pos() - displacement);
-      Common::message(QString("Failure on comparison %1 (false positive)").arg(i+1));
+      qDebug() << "Failure on comparison" << i + 1 << "(false positive)";
     }
     QVERIFY(!match);
 
     nxtal->deleteLater();
   }
 
-  Common::message(QString(
-                  "Made 2 * %1 comparisons of %2 atom unit cells, one positive "
-                  "control and one negative control for each pair of structures."
-                  "\n\tSuccess time: %3 ms total (%4 ms average), Failure time: "
-                  "%5 ms total (%6 ms average).")
-                  .arg(iterations)
-                  .arg(numAtoms)
-                  .arg(success_msecs)
-                  .arg(success_msecs / static_cast<double>(iterations))
-                  .arg(failure_msecs)
-                  .arg(failure_msecs / static_cast<double>(iterations)));
+  qDebug() << QString(
+                "Made 2 * %1 comparisons of %2 atom unit cells, one positive "
+                "control and one negative control for each pair of structures."
+                "\n\tSuccess time: %3 ms total (%4 ms average), Failure time: "
+                "%5 ms total (%6 ms average).")
+                .arg(iterations)
+                .arg(numAtoms)
+                .arg(success_msecs)
+                .arg(success_msecs / static_cast<double>(iterations))
+                .arg(failure_msecs)
+                .arg(failure_msecs / static_cast<double>(iterations));
 }
 
-void XtalTest::checkInteratomicDistancesTest()
+void XtalTest::equalityVsFingerprintTest()
 {
-  using ::XtalOpt::EleScaledRadii;
+  // Load rutile POSCAR: (16xTiO2)
+  std::stringstream rutilePOSCAR("\
+Ti16 O32 \n\
+1\n\
+    6.01724500   0.00000000   0.00000000\n\
+    0.00000193   6.35400106   0.00000000\n\
+   -0.00000303  -0.00000000  12.70800514\n\
+Ti O  \n\
+16 32 \n\
+Direct\n\
+    0.31620100   0.59409200   0.00000000\n\
+    0.31620100   0.59409300   0.50000000\n\
+    0.06620100   0.09409200   0.50000000\n\
+    0.06620100   0.59409200   0.75000000\n\
+    0.56620100   0.09409200   0.50000000\n\
+    0.81620000   0.09409200   0.25000000\n\
+    0.56620100   0.59409300   0.75000000\n\
+    0.31620100   0.09409200   0.75000000\n\
+    0.81620100   0.59409200   0.00000100\n\
+    0.06620100   0.59409200   0.25000000\n\
+    0.81620100   0.09409200   0.75000000\n\
+    0.81620100   0.59409200   0.50000000\n\
+    0.31620000   0.09409200   0.25000000\n\
+    0.56620000   0.59409200   0.25000000\n\
+    0.56620000   0.09409300   0.00000000\n\
+    0.06620100   0.09409200   0.00000000\n\
+    0.06620000   0.59409200   0.59835800\n\
+    0.81620100   0.89737700   0.50000000\n\
+    0.56620100   0.59409200   0.09835800\n\
+    0.06620000   0.09409100   0.15164300\n\
+    0.56620100   0.09409100   0.65164300\n\
+    0.06620000   0.09409300   0.34835700\n\
+    0.31620100   0.29080700   0.50000000\n\
+    0.06620200   0.59409200   0.09835700\n\
+    0.06620200   0.59409200   0.90164300\n\
+    0.81620000   0.29080700   0.00000100\n\
+    0.56620000   0.59409400   0.59835700\n\
+    0.31620100   0.79080600   0.25000000\n\
+    0.31620200   0.29080600   0.00000000\n\
+    0.81620000   0.39737700   0.75000000\n\
+    0.56620100   0.09409300   0.34835700\n\
+    0.31620100   0.39737700   0.25000000\n\
+    0.81620200   0.89737700   0.00000000\n\
+    0.06620100   0.09409200   0.65164300\n\
+    0.31620100   0.79080600   0.75000100\n\
+    0.56620200   0.59409100   0.40164300\n\
+    0.81620100   0.79080600   0.75000100\n\
+    0.56620100   0.09409200   0.84835700\n\
+    0.81620100   0.39737700   0.25000000\n\
+    0.81620100   0.29080700   0.50000000\n\
+    0.31620100   0.39737700   0.75000000\n\
+    0.81620100   0.79080600   0.25000000\n\
+    0.31620000   0.89737800   0.50000000\n\
+    0.31620100   0.89737800   0.00000000\n\
+    0.56620200   0.59409200   0.90164300\n\
+    0.06620100   0.09409300   0.84835700\n\
+    0.06620100   0.59409200   0.40164300\n\
+    0.56620000   0.09409200   0.15164300\n");
 
-  // O-O minimum pair distance = 0.66 + 0.66 = 1.32 A
-  EleScaledRadii limits;
-  limits.setMinRadius(8, 0.66); // O
+  // This is the niggli reduced rutile structure
+  Xtal rutileSeed;
+  QVERIFY(PoscarFormat::read(rutileSeed, rutilePOSCAR));
 
-  int atom1 = -1, atom2 = -1;
-  double iad = 0.0;
+  // List to store reproductions
+  QList<Xtal*> rutiles;
 
-  // --- Test 1: two O atoms clearly far enough apart: true ---
-  {
-    Xtal xtal(10.0, 10.0, 10.0, 90.0, 90.0, 90.0);
-    Atoms::Atom& a = xtal.addAtom();
-    a.setAtomicNumber(8);
-    a.setPos(Common::Vector3(0.0, 0.0, 0.0));
-    Atoms::Atom& b = xtal.addAtom();
-    b.setAtomicNumber(8);
-    b.setPos(Common::Vector3(2.0, 0.0, 0.0)); // 2.0 A > 1.32 A
-    QVERIFY(xtal.checkInterAtomicDistancesScaled(limits, &atom1, &atom2, &iad));
-    QVERIFY(atom1 == -1 && atom2 == -1);
+  // Generate a random representation of each structure by applying
+  // each mix and transformation in the Xtal static lists
+  const Matrix3 oldCell = rutileSeed.unitCell().cellMatrix();
+  Matrix3 newCell;
+  for (QVector<Eigen::Matrix3d>::const_iterator
+         xform = Xtal::m_transformationMatrices.constBegin(),
+         xform_end = Xtal::m_transformationMatrices.constEnd();
+       xform != xform_end; ++xform) {
+    const Eigen::Matrix3d xformTranspose(xform->transpose());
+    for (QVector<Eigen::Matrix3d>::const_iterator
+           mix = Xtal::m_mixMatrices.constBegin(),
+           mix_end = Xtal::m_mixMatrices.constEnd();
+         mix != mix_end; ++mix) {
+      newCell = (*mix) * oldCell * xformTranspose;
+      rutiles << new Xtal(rutileSeed);
+      rutiles.last()->setCellInfo(newCell);
+      // Transform atoms
+      std::vector<Atom>& newAtoms = rutiles.last()->atoms();
+      for (auto& atom : newAtoms) {
+        atom.setPos((*xform) * atom.pos());
+      }
+    }
   }
 
-  // --- Test 2: two O atoms too close: false ---
-  {
-    Xtal xtal(10.0, 10.0, 10.0, 90.0, 90.0, 90.0);
-    Atoms::Atom& a = xtal.addAtom();
-    a.setAtomicNumber(8);
-    a.setPos(Common::Vector3(0.0, 0.0, 0.0));
-    Atoms::Atom& b = xtal.addAtom();
-    b.setAtomicNumber(8);
-    b.setPos(Common::Vector3(1.0, 0.0, 0.0)); // 1.0 A < 1.32 A
-    QVERIFY(!xtal.checkInterAtomicDistancesScaled(limits, &atom1, &atom2, &iad));
-    QVERIFY(atom1 >= 0 && atom2 >= 0 && atom1 != atom2);
-    QVERIFY(iad < 1.32);
+  // Now a uniform translation to each structure. Initialize the
+  // random number generator to the same value to ensure consistent
+  // results.
+  srand(0);
+  Vector3 uTranslation(rand(), rand(), rand());
+  uTranslation.normalize();
+  // Now loop through all structures in rutile seeds, creating new
+  // xtals with random noise
+  double coordNoiseMax = 0.005; // angstrom
+  // double angleNoiseMax = 0.150; // degree
+  // double lengthNoiseMax= 0.005; // angstrom
+
+  const unsigned int noiselessDups = rutiles.size();
+
+  Vector3 curUTranslation; // xtal-specific uniform translation
+  Vector3 curNTranslation; // xtal-specific noise translation
+  for (unsigned int i = 0; i < noiselessDups; ++i) {
+    rutiles << new Xtal(*rutiles.at(i));
+    curUTranslation = uTranslation * i;
+    std::vector<Atom>& currentAtoms = rutiles.last()->atoms();
+    for (auto& atom : currentAtoms) {
+      curNTranslation << rand(), rand(), rand();
+      curNTranslation.normalize();
+      curNTranslation *= coordNoiseMax;
+      atom.setPos(atom.pos() + curUTranslation + curNTranslation);
+    }
   }
 
-  // --- Test 3: close contact only through periodic image: false ---
-  // In a 3 A cubic cell, atoms at x=0.2 and x=2.8 are 2.6 A apart
-  // directly but only 0.4 A apart through the periodic boundary.
-  {
-    Xtal xtal(3.0, 3.0, 3.0, 90.0, 90.0, 90.0);
-    Atoms::Atom& a = xtal.addAtom();
-    a.setAtomicNumber(8);
-    a.setPos(Common::Vector3(0.2, 0.0, 0.0));
-    Atoms::Atom& b = xtal.addAtom();
-    b.setAtomicNumber(8);
-    b.setPos(Common::Vector3(2.8, 0.0, 0.0)); // image distance = 3.0-2.6 = 0.4 A
-    QVERIFY(!xtal.checkInterAtomicDistancesScaled(limits, &atom1, &atom2, &iad));
-    QVERIFY(iad < 1.32);
+  qDebug() << "\n"
+           << noiselessDups << "pure mix/rot/ref structures\n"
+           << rutiles.size() << "total structures.";
+
+  // Perform niggli reduction on each structure. This will also wrap
+  // atoms to the cell. Calculate the spacegroups first, this more
+  // closely resembles the fingerprint method.
+  rutileSeed.findSpaceGroup();
+  QVERIFY(rutileSeed.niggliReduce());
+  for (QList<Xtal *>::iterator it = rutiles.begin(), it_end = rutiles.end();
+       it != it_end; ++it) {
+    (*it)->findSpaceGroup();
+    QVERIFY((*it)->niggliReduce());
   }
 
-  // --- Test 4: single atom: no pairs, always passes ---
-  {
-    Xtal xtal(10.0, 10.0, 10.0, 90.0, 90.0, 90.0);
-    Atoms::Atom& a = xtal.addAtom();
-    a.setAtomicNumber(8);
-    a.setPos(Common::Vector3(0.0, 0.0, 0.0));
-    QVERIFY(xtal.checkInterAtomicDistancesScaled(limits, &atom1, &atom2, &iad));
+  // Test equality between each rutile and the seed
+  unsigned int count = 0;
+  for (QList<Xtal *>::iterator it = rutiles.begin(), it_end = rutiles.end();
+       it != it_end; ++it) {
+    ++count;
+    bool match = (rutileSeed == *(*it));
+    if (!match) {
+      XtalOptDebug::dumpPseudoPwscfOut(&rutileSeed, "Testing/seed");
+      XtalOptDebug::dumpPseudoPwscfOut((*it), "Testing/gen");
+      qDebug() << "Failure on comparison" << count;
+    }
+    QVERIFY(match);
   }
-}
 
-void XtalTest::moveAtomRandomlyChecksDistancesAgainstEachAtom()
-{
-  using ::XtalOpt::EleScaledRadii;
+  qDebug() << "\n"
+           << "All structures pass the XtalComparison test.";
 
-  EleScaledRadii limits;
-  limits.setMinRadius(8, 1.0);
+  // Compare the "old" fingerprint method.
+  unsigned int failed = 0;
+  count = 0;
+  // structure number (>=1) and spg number
+  QHash<unsigned int, unsigned int> failures;
+  for (QList<Xtal *>::iterator it = rutiles.begin(), it_end = rutiles.end();
+       it != it_end; ++it) {
+    ++count;
+    // Be generous and assume that the enthalpies match. All
+    // transformations preserve volume, so don't check that either.
+    if (rutileSeed.getSpaceGroupNumber() != (*it)->getSpaceGroupNumber()) {
+      ++failed;
+      failures.insert(count, (*it)->getSpaceGroupNumber());
+    }
+  }
 
-  Xtal xtal(1.0, 1.0, 1.0, 90.0, 90.0, 90.0);
-  Atoms::Atom& movingAtom = xtal.addAtom();
-  movingAtom.setAtomicNumber(8);
-  movingAtom.setPos(Common::Vector3(0.0, 0.0, 0.0));
+  qDebug() << "\n"
+           << failed << "structures failed the "
+                        "fingerprint comparison (volume + spg):";
 
-  Atoms::Atom& fixedAtom = xtal.addAtom();
-  fixedAtom.setAtomicNumber(8);
-  fixedAtom.setPos(Common::Vector3(0.5, 0.5, 0.5));
-
-  // Check a short periodic cell (moving atom 0 must fail!).
-  QVERIFY(!xtal.moveAtomRandomlyScaledIAD(8, limits, 4, &xtal.atom(0)));
-}
-
-void XtalTest::writeReadSettingsPreservesCompositionValidity()
-{
-  QTemporaryDir tempDir;
-  QVERIFY(tempDir.isValid());
-
-  const QString stateFile = Common::localPath(tempDir.path(), "xtalopt.state");
-  const QString structureDir = Common::localPath(tempDir.path(), "00001x00001");
-  QVERIFY(QDir().mkpath(structureDir));
-
-  ::XtalOpt::XtalOpt producer;
-  producer.setLocWorkDir(tempDir.path());
-  producer.setInputFormulasString("O1");
-  QVERIFY(producer.processInputChemicalFormulas(producer.getInputFormulasString()));
-  QVERIFY(producer.setQueueInterface(0, "none"));
-  QVERIFY(producer.setOptimizer(0, "gulp"));
-
-  Xtal* source = new Xtal(4.0, 4.0, 4.0, 90.0, 90.0, 90.0);
-  source->setGeneration(1);
-  source->setIDNumber(1);
-  source->setLocpath(structureDir);
-  source->setStatus(Structure::Optimized);
-  source->addAtom(8, Common::Vector3(0.0, 0.0, 0.0));
-  source->setCompositionValidity(false);
-  QVERIFY(producer.tracker()->append(source));
-  QVERIFY(producer.saveSessionState(stateFile, false));
-
-  ::XtalOpt::XtalOpt loaded;
-  loaded.setRunMode(::XtalOpt::XtalOpt::RunModeReadOnly);
-  QVERIFY(loaded.resumeSearch(stateFile));
-  QCOMPARE(loaded.tracker()->size(), 1);
-  Xtal* loadedStructure = static_cast<Xtal*>(loaded.tracker()->at(0));
-  QVERIFY(loadedStructure);
-
-  QVERIFY(!loadedStructure->hasValidComposition());
-}
-
-void XtalTest::resultsEntryUsesComputedSpaceGroup()
-{
-  Xtal xtal(5.0, 5.0, 5.0, 90.0, 90.0, 90.0);
-  xtal.addAtom(14, Common::Vector3(0.0, 0.0, 0.0));
-  xtal.findSpaceGroup();
-
-  const QString entry = xtal.getResultsEntry(0, 0, 0);
-  QVERIFY(entry.contains("   221 "));
-}
-
-void XtalTest::hullFormattingTest()
-{
-  Xtal xtal(5.0, 5.0, 5.0, 90.0, 90.0, 90.0);
-
-  Atoms::Atom& ti = xtal.addAtom();
-  ti.setAtomicNumber(22);
-  ti.setPos(Common::Vector3(0.0, 0.0, 0.0));
-
-  Atoms::Atom& o1 = xtal.addAtom();
-  o1.setAtomicNumber(8);
-  o1.setPos(Common::Vector3(1.0, 0.0, 0.0));
-
-  Atoms::Atom& o2 = xtal.addAtom();
-  o2.setAtomicNumber(8);
-  o2.setPos(Common::Vector3(0.0, 1.0, 0.0));
-
-  xtal.setGeneration(2);
-  xtal.setIDNumber(7);
-  xtal.setIndex(11);
-  xtal.setEnthalpy(-12.5);
-  xtal.setParetoFront(3);
-  xtal.setDistAboveHull(0.125);
-
-  QList<QString> chemSystem;
-  chemSystem << "Ti" << "O";
-
-  const QString header = Xtal::getHullHeader(chemSystem);
-  const QString entry = xtal.getHullEntry(chemSystem);
-
-  QVERIFY(header.contains("AboveHullAtm"));
-  QVERIFY(header.contains("Pareto"));
-  QVERIFY(header.contains("Index"));
-
-  const QStringList entryFields = entry.simplified().split(' ');
-  QCOMPARE(entryFields.size(), 8);
-  QCOMPARE(entryFields[0], QString("1"));
-  QCOMPARE(entryFields[1], QString("2"));
-  QCOMPARE(entryFields[2], QString("-12.500000"));
-  QCOMPARE(entryFields[3], QString("#"));
-  QCOMPARE(entryFields[4], QString("0.125000"));
-  QCOMPARE(entryFields[5], QString("3"));
-  QCOMPARE(entryFields[6], QString("11"));
-  QCOMPARE(entryFields[7], QString("2x7"));
+  printf("Seeded structure has spacegroup: %d\n",
+         rutileSeed.getSpaceGroupNumber());
+  QList<unsigned int> failureKeys = failures.keys();
+  qSort(failureKeys);
+  unsigned int entriesInLine = 0;
+  for (QList<unsigned int>::const_iterator it = failureKeys.constBegin(),
+                                           it_end = failureKeys.constEnd();
+       it != it_end; ++it) {
+    printf("%03d: %-3d  ", // width = 10
+           (*it), failures[*it]);
+    if (++entriesInLine == 7) {
+      printf("\n");
+      entriesInLine = 0;
+    }
+  }
 }
 
 QTEST_MAIN(XtalTest)

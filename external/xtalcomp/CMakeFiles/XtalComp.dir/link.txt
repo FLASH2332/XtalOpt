@@ -1,0 +1,2 @@
+/usr/bin/ar qc libXtalComp.a CMakeFiles/XtalComp.dir/XtalComp_autogen/mocs_compilation.cpp.o CMakeFiles/XtalComp.dir/xtalcomp.cpp.o CMakeFiles/XtalComp.dir/xctransform.cpp.o
+/usr/bin/ranlib libXtalComp.a

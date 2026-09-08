@@ -19,7 +19,6 @@
     #tournamentSelection = true
     #restrictedPool = false
     #crowdingDistance = true
-    #paretoFilterZeroWeights = false
     #objectivePrecision = -1
 
   # Lattice constraints
@@ -52,34 +51,39 @@
   # Atomic radii
     # Ensure that atoms are distanced such that their covalent radii do not
     # overlap. Note, this option and "usingCustomIADs" cannot both be true.
-      usingScaledIADs = true
+      usingRadiiInteratomicDistanceLimit = true
     # Scale all covalent radii by this number
       radiiScalingFactor = 0.5
     # Minimum radius for any given atom (Angstroms)
       minRadius = 0.25
 
   # Use custom interatomic distances? Note: this option and
-  # "usingScaledIADs" cannot both be true.
+  # "usingRadiiInteratomicDistanceLimit" cannot both be true.
     #usingCustomIADs = false
   # Custom IAD entries appear as follows:
-    # customIAD = <atomicSymbol1>, <atomicSymbol2>, <minIAD>
-    #customIAD = Ti, O, 1.45
+    # customIAD <atomicSymbol1>, <atomicSymbol2>, <minIAD>
+    #customIAD 1 = Ti, O, 1.45
 
   # Check IADs after optimization?
     #checkIADPostOptimization = false
 
-  # Initialize molecule units?
-    # Each molUnit entry is a formula and a catalog template.
-    # Run "xtalopt --molecules" to list available templates.
-    #molUnit = Ti1O4 tetrahedral_td_center_shell
-    #molUnit = O2 linear_2_pair
+  # Initialize molecular units?
+    #usingMolecularUnits = false
+    # The geometry type must be valid for the number of neighbors. If
+    # you run an invalid one, it will print to you the ones that are valid.
+
+    # Molecular Unit entries appear as follows:
+    # <centerAtomicSymbol>, <numCenters>, <neighborAtomicSymbol>,
+    # <numNeighbors>, <geometry>, <distance>
+    #molecularUnits 1 = Ti, 1, O, 4, tetrahedral, 1.320
+    #molecularUnits 2 = O, 1, O, 1, linear, 1.000
 
   # Initialize all crystals with symmetry? (space groups are randomly selected)
     #usingRandSpg = false
   # We can put down a list of space groups to be generated for sure per FU.
-  # You must comma-separate each space group. If you
+  # You must comma-separate each space group (no hyphens allowed). If you
   # want more of a single space group, repeat it like 136 below.
-    #forcedSpgs = 1, 2, 136, 136, 136
+    #forcedSpgsWithRandSpg = 1, 2, 136, 136, 136
 
   # Custom user-defined keywords
     #user1 =
@@ -104,19 +108,19 @@
   # Number of failures for a job before we take action
     jobFailLimit = 1
   # What to do after a job has failed too many times
-  # Options: fail, keepTrying, replaceWithRandom, replaceWithOffspring
-    jobFailAction = fail
+  # Options: keepTrying, kill, replaceWithRandom, replaceWithOffspring
+    jobFailAction = replaceWithRandom
 
-  # Mutation operators
+  # Mutators
   # Percent chances of producing a supercell after genetic operations
-    #randomSuperCell = 0
+    #randomSupercell = 0
 
   # Relative weight of applying genetic operations - need to be integers
-    weightCrossover = 20
-    weightStripple = 20
-    weightPermustrain = 20
-    weightPermutomic = 20
-    weightPermucomp = 10
+    weightCrossover = 35
+    weightStripple = 25
+    weightPermustrain = 25
+    weightPermutomic = 15
+    weightPermucomp = 5
 
   # Stripple options
     strippleAmplitudeMin = 0.5
@@ -137,8 +141,8 @@
   # Multi-objective search (and objectives)
     #objective = min path/script1 outputfile1 weight1
     #objective = max path/script2 outputfile2 weight2
-    #constraint = path/script3 outputfile3
-    #constraintsReDo = false
+    #objective = fil path/script3 outputfile3 0.0
+    #objectivesReDo = false
 
   # Similarity check
   # By default, XtalComp is used; unless the rdf tolerance is > 0
@@ -148,8 +152,8 @@
     # Degrees
       xtalcompToleranceAngle = 2.0
   # RDF
-    # Similarity tolerance in [0, 1] range; suggested: 0.98
-      rdfTolerance = 0.98
+    # Similarity tolerance in [0, 1] range
+      rdfTolerance = 0.0
     # Bond length cutoff
       rdfCutoff = 6.0
     # Gaussian spread
@@ -165,15 +169,14 @@
     #seedStructures = /path1/seed1 , /path2/seed2
 
   # Run termination and output
-  # Finish the run after max number of structures are produced
+  # Finish the run after max number of structures are produces
     #softExit = true
   # Finish the run as soon as this "run-time flag" is set
     #hardExit = true
 
   # Output of the run
-  # Produce a verbose and debug output:
+  # Produce a verbose output (i.e., debug-like information)
     #verboseOutput = true
-    #debugOutput = true
   # Save a copy of the convex hull to 'movie' folder after each optimization
     #saveHullSnapshots = false
 
@@ -184,13 +187,14 @@
   templatesDirectory = ./templates/gulp
 
 # Queue interface settings
-  # What type of queue interface? Options are none, slurm, pbs, sge, lsf,
-  # and loadleveler. Use 'none' to run optimizer commands directly.
-    queueInterface = none
+  # What type of queue interface? Options are local, pbs, sge, slurm, lsf,
+  # and loadleveler. All are remote except for 'local'.
+    queueInterface = local
 
-  # A batch queue interface submits jobs on the local machine by default.
-  # To submit them through SSH to a remote cluster, set:
-    #remoteQueue = true
+  # If we want to run XtalOpt locall, but submit jobs to queue, then
+  # a remote queue must be specified in queue interface, along with
+  # the following flag:
+    #localQueue = true
 
   # Where to save the data locally?
     localWorkingDirectory = ./localWorkingDirectory
@@ -203,7 +207,7 @@
   # optimization step. An error message will be printed if you do not.
     numOptimizationSteps = 1
 
-  # Remote queue interface settings (used only when remoteQueue=true)
+  # Remote queue interface settings (will be ignored for local runs)
     host = rush.ccr.buffalo.edu
     port = 22
     user = psavery
@@ -228,7 +232,7 @@
     # Submission script templates (need to be in the templatesDir)
     # For multiple jobs, comma separation works. Must be equal to the
     # number of optimization steps
-      #jobTemplates = job1, job2, job3
+      jobTemplates = job1, job2, job3
 
     # Autocancel job settings
       #autoCancelJobAfterTime = false
@@ -238,12 +242,12 @@
 
 # Optimizer settings
   # What type of optimizer are we using? Options are gulp, vasp, pwscf,
-  # castep, siesta, and mtp
+  # castep, and siesta
     optimizer = gulp
 
-  # Local run command (used by direct runs with queueInterface=none)
-  # The value can include arguments, e.g. "castep xtal"
-    directRunCommand = gulp
+  # Location of the executable (only applicable for local queue interfaces)
+  # The value can be arbitrarily formatted, according to the code, e.g. "castep xtal"
+    exeLocation = gulp
 
   # In these templates, there are special characters used like %a% for the
   # A vector length. Look up the XtalOpt manual for a complete listing.
@@ -257,16 +261,16 @@
 
     # For each element, you need to specify a separate line for its POTCAR
     # For example, TiO2 would look like this:
-      #potcarFile = Ti /home/user/vasp_potcars/Ti/POTCAR
-      #potcarFile = O /home/user/vasp_potcars/O/POTCAR
+      #potcarFile Ti = /home/user/vasp_potcars/Ti/POTCAR
+      #potcarFile O = /home/user/vasp_potcars/O/POTCAR
     # Or, if POTCARs are combined (in alphabetical order for element names),
     # a single file can be introduced for the system as:
-      #potcarFile = system /home/user/vasp_potcars/POTCAR
+      #potcarFile system = /home/user/vasp_potcars/POTCAR
 
   # PWSCF templates (only for optimizer = pwscf)
     #pwscfTemplates = pwscf1, pwscf2, pwscf3
 
-  # CASTEP templates (only for optimizer = castep)
+  # CASTEP emplates (only for optimizer = castep)
     #castepCellTemplates = cell1, cell2, cell3
     #castepParamTemplates = param1, param2, param3
 

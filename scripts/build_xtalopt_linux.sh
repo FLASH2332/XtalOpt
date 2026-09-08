@@ -1,8 +1,7 @@
 #!/bin/bash
-set -e
 
-# Script to build the XtalOpt GUI on a linux system, given that all
-#   requirements are already installed (Qt, Qwt, libssh).
+# Script to build XtalOpt on a linux system, given that all
+#   requirements already installed.
 # It is assumed that this is run in "xtalopt-source"/build
 
 # *********************************************************
@@ -10,19 +9,21 @@ set -e
 # *********************************************************
 
 insdir=$PWD/../xtalopt_linux
-buildt=Release
 instal=ON
 hasssh=ON
+clissh=ON
+hasdbg=OFF
 
 # *********************************************************
 # **** Configure the build                             ****
 # *********************************************************
 
-cmake -DBUILD_XTALOPT_GUI=ON \
-      -DBUILD_INDEPENDENT_PACKAGE=$instal \
-      -DCMAKE_BUILD_TYPE=$buildt \
+cmake -DBUILD_INDEPENDENT_PACKAGE=$instal \
+      -DINSTALL_DEPENDENCIES=$instal \
       -DCMAKE_INSTALL_PREFIX=$insdir \
-      -DBUILD_WITH_LIBSSH=$hasssh \
+      -DENABLE_SSH=$hasssh \
+      -DUSE_CLI_SSH=$clissh \
+      -DXTALOPT_DEBUG=$hasdbg \
       ..
 
 # *********************************************************

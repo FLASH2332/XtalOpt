@@ -1,0 +1,2 @@
+/usr/bin/ar qc libRandSpg.a CMakeFiles/RandSpg.dir/RandSpg_autogen/mocs_compilation.cpp.o CMakeFiles/RandSpg.dir/src/crystal.cpp.o CMakeFiles/RandSpg.dir/src/elemInfo.cpp.o CMakeFiles/RandSpg.dir/src/randSpgCombinatorics.cpp.o CMakeFiles/RandSpg.dir/src/randSpg.cpp.o
+/usr/bin/ranlib libRandSpg.a

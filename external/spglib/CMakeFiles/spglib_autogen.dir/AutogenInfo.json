@@ -1,0 +1,333 @@
+{
+	"BUILD_DIR" : "/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spglib_autogen",
+	"CMAKE_BINARY_DIR" : "/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0",
+	"CMAKE_CURRENT_BINARY_DIR" : "/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib",
+	"CMAKE_CURRENT_SOURCE_DIR" : "/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib",
+	"CMAKE_EXECUTABLE" : "/usr/bin/cmake",
+	"CMAKE_LIST_FILES" : 
+	[
+		"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/CMakeLists.txt"
+	],
+	"CMAKE_SOURCE_DIR" : "/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0",
+	"DEP_FILE" : "/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spglib_autogen/deps",
+	"DEP_FILE_RULE_NAME" : "spglib_autogen/timestamp",
+	"HEADERS" : 
+	[
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/arithmetic.h",
+			"MU",
+			"EWIEGA46WW/moc_arithmetic.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/cell.h",
+			"MU",
+			"EWIEGA46WW/moc_cell.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/debug.h",
+			"MU",
+			"EWIEGA46WW/moc_debug.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/delaunay.h",
+			"MU",
+			"EWIEGA46WW/moc_delaunay.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/determination.h",
+			"MU",
+			"EWIEGA46WW/moc_determination.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/hall_symbol.h",
+			"MU",
+			"EWIEGA46WW/moc_hall_symbol.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/kgrid.h",
+			"MU",
+			"EWIEGA46WW/moc_kgrid.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/kpoint.h",
+			"MU",
+			"EWIEGA46WW/moc_kpoint.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/magnetic_spacegroup.h",
+			"MU",
+			"EWIEGA46WW/moc_magnetic_spacegroup.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/mathfunc.h",
+			"MU",
+			"EWIEGA46WW/moc_mathfunc.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/msg_database.h",
+			"MU",
+			"EWIEGA46WW/moc_msg_database.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/niggli.h",
+			"MU",
+			"EWIEGA46WW/moc_niggli.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/overlap.h",
+			"MU",
+			"EWIEGA46WW/moc_overlap.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/pointgroup.h",
+			"MU",
+			"EWIEGA46WW/moc_pointgroup.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/primitive.h",
+			"MU",
+			"EWIEGA46WW/moc_primitive.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/refinement.h",
+			"MU",
+			"EWIEGA46WW/moc_refinement.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/site_symmetry.h",
+			"MU",
+			"EWIEGA46WW/moc_site_symmetry.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/sitesym_database.h",
+			"MU",
+			"EWIEGA46WW/moc_sitesym_database.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spacegroup.h",
+			"MU",
+			"EWIEGA46WW/moc_spacegroup.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spg_database.h",
+			"MU",
+			"EWIEGA46WW/moc_spg_database.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spglib.h",
+			"MU",
+			"EWIEGA46WW/moc_spglib.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spin.h",
+			"MU",
+			"EWIEGA46WW/moc_spin.cpp",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/symmetry.h",
+			"MU",
+			"EWIEGA46WW/moc_symmetry.cpp",
+			null
+		]
+	],
+	"HEADER_EXTENSIONS" : [ "h", "hh", "h++", "hm", "hpp", "hxx", "in", "txx" ],
+	"INCLUDE_DIR" : "/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spglib_autogen/include",
+	"MOC_COMPILATION_FILE" : "/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spglib_autogen/mocs_compilation.cpp",
+	"MOC_DEFINITIONS" : [ "ENABLE_SSH", "USE_CLI_SSH", "XTALOPT_VER=\"14.3.0\"" ],
+	"MOC_DEPEND_FILTERS" : 
+	[
+		[
+			"Q_PLUGIN_METADATA",
+			"[\n][ \t]*Q_PLUGIN_METADATA[ \t]*\\([^\\)]*FILE[ \t]*\"([^\"]+)\""
+		]
+	],
+	"MOC_INCLUDES" : 
+	[
+		"/usr/include/qwt",
+		"/usr/include/x86_64-linux-gnu/qt5",
+		"/usr/include/x86_64-linux-gnu/qt5/QtNetwork",
+		"/usr/include/x86_64-linux-gnu/qt5/QtCore",
+		"/usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++",
+		"/usr/include/x86_64-linux-gnu/qt5/QtWidgets",
+		"/usr/include/x86_64-linux-gnu/qt5/QtGui",
+		"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0",
+		"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/src",
+		"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/qhull/src",
+		"/usr/include/eigen3",
+		"/usr/include/c++/13",
+		"/usr/include/x86_64-linux-gnu/c++/13",
+		"/usr/include/c++/13/backward",
+		"/usr/lib/gcc/x86_64-linux-gnu/13/include",
+		"/usr/local/include",
+		"/usr/include/x86_64-linux-gnu",
+		"/usr/include"
+	],
+	"MOC_MACRO_NAMES" : [ "Q_OBJECT", "Q_GADGET", "Q_NAMESPACE", "Q_NAMESPACE_EXPORT" ],
+	"MOC_OPTIONS" : [],
+	"MOC_PATH_PREFIX" : false,
+	"MOC_PREDEFS_CMD" : 
+	[
+		"/usr/bin/c++",
+		"-std=gnu++11",
+		"-dM",
+		"-E",
+		"-c",
+		"/usr/share/cmake-3.28/Modules/CMakeCXXCompilerABI.cpp"
+	],
+	"MOC_PREDEFS_FILE" : "/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spglib_autogen/moc_predefs.h",
+	"MOC_RELAXED_MODE" : false,
+	"MOC_SKIP" : [],
+	"MULTI_CONFIG" : false,
+	"PARALLEL" : 8,
+	"PARSE_CACHE_FILE" : "/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/CMakeFiles/spglib_autogen.dir/ParseCache.txt",
+	"QT_MOC_EXECUTABLE" : "/usr/lib/qt5/bin/moc",
+	"QT_UIC_EXECUTABLE" : "/usr/lib/qt5/bin/uic",
+	"QT_VERSION_MAJOR" : 5,
+	"QT_VERSION_MINOR" : 15,
+	"SETTINGS_FILE" : "/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/CMakeFiles/spglib_autogen.dir/AutogenUsed.txt",
+	"SOURCES" : 
+	[
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/arithmetic.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/cell.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/debug.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/delaunay.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/determination.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/hall_symbol.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/kgrid.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/kpoint.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/magnetic_spacegroup.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/mathfunc.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/msg_database.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/niggli.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/overlap.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/pointgroup.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/primitive.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/refinement.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/site_symmetry.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/sitesym_database.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spacegroup.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spg_database.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spglib.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/spin.c",
+			"MU",
+			null
+		],
+		[
+			"/mnt/d/CollegeStuff/Final_Year_project/XtalOpt-14.3.0_SourceCode/XtalOpt-14.3.0/external/spglib/symmetry.c",
+			"MU",
+			null
+		]
+	],
+	"UIC_OPTIONS" : [],
+	"UIC_SEARCH_PATHS" : [],
+	"UIC_SKIP" : [],
+	"UIC_UI_FILES" : [],
+	"VERBOSITY" : 0
+}
